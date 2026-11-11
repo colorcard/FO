@@ -1,10 +1,26 @@
 # AGENTS.md
 
+## ⛔ 发布限制（用户明确指令，优先级最高）
+
+**未经用户明确命令，严禁公开发布本 mod**，包括但不限于：`git push` 到任何公开远端、创建 GitHub Release/fork/公开仓库、上传 jar 到 Modrinth/CurseForge/群/网盘/论坛/社交媒体。允许本地 commit、本地 tag、本地构建和本地测试。需要发布时必须先得到用户逐次明确授权；本节与下方任何发布流程冲突时，以本节为准。
+
+## 26.3 移植分支（当前工作区）
+
+> 本工作区以上游 `jialebot6666/FO` 最新 `main`（**6.7p36**，9 个模块，含 `StashMover`）为基线，已移植到 **MC 26.3 + 官方命名 + Loom 1.18.4 + JDK 25**。
+> - 产物：`FO-6.7p36-26.3.jar`；26.1 起游戏不再混淆，构建无需 `mappings`/Yarn/intermediary。
+> - Access Widener 已改为 Class Tweaker：`fo/src/main/resources/fo.classtweaker`。
+> - Baritone 不再需要编译期 jar：`BaritonePathManager` 全程反射；运行时由 26.3 的 baritone mod 提供。
+> - 26.3 运行时冒烟测试：`itest/`（独立测试 mod，不随正式 jar 发布），判定 `FO_INTEGRATION_TESTS_PASSED modules=9`。
+> - 旧 6.6 移植保留在本地分支 `port/26.3-6.6`，仅作对照；当前交付以本分支为准。
+>
+> 下方 1.21.11 时代的历史记录保留，用于追溯功能语义；构建/运行参数以本节和「构建与测试」为准。
+
+
 ## 项目
 
-FO — Minecraft **Meteor Client (Fabric) 生存辅助全自动插件**（MC 1.21.11，模块统一带 `FO ` 前缀、全汉化）。
+FO — Minecraft **Meteor Client (Fabric) 生存辅助全自动插件**（当前工作区：MC 26.3，模块统一带 `FO ` 前缀、全汉化）。
 - 代码根：`fo/`（包 `com.fo.addon`）；`ref-src/` 是本机外部参考源码目录，被 `.gitignore` 排除、不入库
-- 当前版本：`mod-version = 6.7p36`（见 `fo/gradle/libs.versions.toml`），产物名 = `FO-6.7p36-1.21.11.jar`（详见「命名规范」）
+- 当前版本：`mod-version = 6.7p36`（见 `fo/gradle/libs.versions.toml`），产物名 = `FO-6.7p36-26.3.jar`（详见「命名规范」）
 - 现有模块（全部注册在 `AddonTemplate.onInitialize()`，统一放进 `Category("FO")`，按注册顺序）：
   1. FO 鞘翅采集（`modules/ElytraCollector`）
   2. FO 自动种树（`modules/AutoTree`）
@@ -944,19 +960,20 @@ $rels | ForEach-Object { $t = $_.tag_name; $_.assets | Where-Object { $_.name -l
 ## 构建与测试
 
 - 构建 + 测试（一条命令）：`cd fo && ./gradlew build`（JUnit 5 随 build 一起跑，交付前必须 0 failures / 0 errors）
-- JDK：21
-  - Linux 侧：`/home/user/jdks/jdk-21.0.12.1+1/bin/`
-  - Windows 侧：用 Minecraft 启动器自带的 runtime（**必须选带 `javac.exe` 的那个**），
-    完整流程见 `docs/windows-build.md`
-- ⚠️ `fo/gradle.properties` 里写死了 `org.gradle.java.home=/home/user/jdks/jdk-21.0.12.1+1`（Linux agent 的环境）。
-  **不要改这个文件**，Windows 上用 `-Dorg.gradle.java.home=<本地 JDK 路径>` 覆盖。
-- ⚠️ 国内网络：`services.gradle.org` 会 connection reset，别用 `gradlew.bat`；Gradle 9.2.0 走腾讯镜像下载后用 `gradle.bat` 直接跑。
+- JDK：**25**（MC 26.3 / Loom 1.18 的硬性要求）
+  - Linux 侧示例：`JAVA_HOME=/home/colorcard/.local/jdks/jdk-25.0.5.0.3 ./gradlew build`
+  - Windows 侧：用带 `javac.exe` 的 JDK 25；Gradle 会按 `libs.versions.toml` 的 `jdk = "25"` 找工具链。
+- ⚠️ `fo/gradle.properties` **不要写死** `org.gradle.java.home`；用系统 `JAVA_HOME` 或
+  `-Porg.gradle.java.installations.paths=<JDK25路径>` 指定。
+- ⚠️ 国内网络：`services.gradle.org` 可能 connection reset；Gradle Wrapper 为 **9.8.1**（Loom 1.18 要求）。
   `github.com` 的 git 传输在本机超时，clone 一律**浅克隆**：`git clone --depth=1 https://gh-proxy.com/https://github.com/jialebot6666/FO.git`
   （硬性规范 7）；提交与发版走 `api.github.com` REST API（见 `docs/scripts/gh-deliver.ps1`）。
 - ⚠️ **依赖下载走国内镜像**：`repo1.maven.org` 直连实测仅约 32 KB/s，Loom 冷启动会直接 `SocketTimeoutException: Read timed out`。
   解决办法（用户级配置，**不改仓库文件**）与实测数据见 `docs/windows-build.md` 第 10 节。
-- Baritone 是仓库内的本地 jar（`fo/libs/baritone-api-fabric-1.21.11-SNAPSHOT.jar`，`modCompileOnly`，运行时由 baritone mod 提供），不需要额外下载。
-- 产物：`fo/build/libs/FO-6.25-1.21.11.jar`（`FO-<mod版本>-<MC版本>.jar`，两段都从 `fo/gradle/libs.versions.toml` 的 `mod-version` 与 `minecraft` 自动拼）
+- Baritone：26.3 下 FO 不再需要编译期 jar（`BaritonePathManager` 纯反射）；运行时由 26.3 的 baritone mod 提供。
+- 产物：`fo/build/libs/FO-6.7p36-26.3.jar`（`FO-<mod版本>-<MC版本>.jar`，两段都从 `fo/gradle/libs.versions.toml` 的 `mod-version` 与 `minecraft` 自动拼）
+- 26.3 运行时冒烟测试：`./itest/build.sh` 生成 `itest/build/libs/fo-it.jar`，按 `itest/README.md` 放进测试实例；
+  看到 `[FO-IT] FO_INTEGRATION_TESTS_PASSED modules=9` 即通过。
 - 交付：最终 jar 必须通过 `present_files` 交给用户
 
 ## 命名规范（硬性）
@@ -964,13 +981,13 @@ $rels | ForEach-Object { $t = $_.tag_name; $_.assets | Where-Object { $_.name -l
 **本节是唯一权威来源**；任何窗口 / 任何 AI 接手本项目，一律按本节执行，不得沿用旧写法。
 
 1. **版本号一律不带 `V` 前缀**。正确写法是 `6.25`，不是 `V6.25`。历史遗留的 `V6.25` / `FO-V6.25` 写法已废弃，新版本不得再出现。
-2. **构建产物名 = `FO-<mod版本>-<MC版本>.jar`**，例：`mod-version = 6.25` + `minecraft = 1.21.11` → **`FO-6.25-1.21.11.jar`**。
+2. **构建产物名 = `FO-<mod版本>-<MC版本>.jar`**，例：`mod-version = 6.7p36` + `minecraft = 26.3` → **`FO-6.7p36-26.3.jar`**。
    - mod 版本来自 `fo/gradle/libs.versions.toml` 的 `mod-version`；MC 版本来自同文件的 `minecraft`。
    - 两段都由 `fo/build.gradle.kts` 的 `base { version = "$modVersion-$minecraftVersion" }` 自动拼，**不要在别处写死版本串**；升 MC 版本时只改 `minecraft` 一处，产物名自动跟随。
 3. **Git tag = `<mod版本>`**（如 `6.25`），不再用 `V6.25` 或 `FO-V6.25`。
-4. **GitHub Release 标题 = `FO <mod版本>-<MC版本>`**（如 `FO 6.25-1.21.11`），**附件名必须与构建产物同名**（`FO-6.25-1.21.11.jar`）。
+4. **GitHub Release 标题 = `FO <mod版本>-<MC版本>`**（如 `FO 6.7p36-26.3`），**附件名必须与构建产物同名**（`FO-6.7p36-26.3.jar`）。
 5. 插件名统一大写 **FO**；mod 显示名（`fabric.mod.json` 的 `name`）保持 `FO`。
-6. `fabric.mod.json` 的 `version` 用**纯 mod 版本**（如 `6.25`），**不带 MC 后缀** —— 带 `-1.21.11` 会被 Fabric 的 semver 解析成 6.25 的预发布版，影响依赖判定。该字段由 `fo/build.gradle.kts` 的 `processResources` 注入。
+6. `fabric.mod.json` 的 `version` 用**纯 mod 版本**（如 `6.25`），**不带 MC 后缀** —— 带 `-26.3` 会被 Fabric 的 semver 解析成 6.7p36 的预发布版，影响依赖判定。该字段由 `fo/build.gradle.kts` 的 `processResources` 注入。
 7. mod id（`fabric.mod.json` 的 `id`）按 Fabric 硬性规范保持小写 `fo`；Java 包名 `com.fo.addon` 保持小写（Java 惯例）。
 
 示例对照表：
@@ -978,10 +995,10 @@ $rels | ForEach-Object { $t = $_.tag_name; $_.assets | Where-Object { $_.name -l
 | 项目 | 旧（已废弃） | 新（唯一正确） |
 | --- | --- | --- |
 | mod-version | `V6.25` | `6.25` |
-| 构建产物 | `FO-V6.25.jar` | `FO-6.25-1.21.11.jar` |
+| 构建产物 | `FO-V6.25.jar` | `FO-6.7p36-26.3.jar` |
 | Git tag | `V6.25` | `6.25` |
-| Release 标题 | `FO V6.25` | `FO 6.25-1.21.11` |
-| Release 附件 | `FO-V6.25.jar` | `FO-6.25-1.21.11.jar` |
+| Release 标题 | `FO V6.25` | `FO 6.7p36-26.3` |
+| Release 附件 | `FO-V6.25.jar` | `FO-6.7p36-26.3.jar` |
 
 ## 详细执行流程
 

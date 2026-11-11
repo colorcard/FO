@@ -1,6 +1,6 @@
 ---
 name: fo-development
-description: FO 插件（Minecraft Meteor Client Fabric 生存辅助，MC 1.21.11）的开发、修复、测试与交付规范。涉及 FO 模块功能开发、Bug 修复、参数调整、默认值修改、单元测试与 jar 交付时必须使用本 skill。
+description: FO 插件（Minecraft Meteor Client Fabric 生存辅助，MC 26.3）的开发、修复、测试与交付规范。涉及 FO 模块功能开发、Bug 修复、参数调整、默认值修改、单元测试与 jar 交付时必须使用本 skill。
 license: CC0-1.0
 ---
 
@@ -8,7 +8,7 @@ license: CC0-1.0
 
 ## 项目背景
 
-- 定位：生存辅助全自动 Meteor Client 插件（Fabric，MC 1.21.11），模块名统一带 `FO ` 前缀（用户环境装有大量其他中文 addon，防重名冲突），前端全汉化。
+- 定位：生存辅助全自动 Meteor Client 插件（Fabric，MC 26.3），模块名统一带 `FO ` 前缀（用户环境装有大量其他中文 addon，防重名冲突），前端全汉化。
 - 代码根：`fo/`，包 `com.fo.addon`；远端仓库 `https://github.com/jialebot6666/FO`（本地工作区路径按机器而定，不要写死）。
 - 现有模块：共 10 个模块 + 1 个 HUD 元素，完整清单见仓库根 `AGENTS.md`（本文件不重复维护清单，避免两处脱节）。
 - 纯逻辑放 `fo/src/main/java/com/fo/addon/utils/`（不依赖 MC 运行时，可单元测试）；测试放 `fo/src/test/java/com/fo/addon/`。
@@ -18,9 +18,9 @@ license: CC0-1.0
 1. **每次改动完成后，必须立即创建一个对应的 Git commit**（信息包含模块名 + 改动摘要），以便追踪和回滚。
 2. **每次改动后，必须编写或更新相关单元测试**，并在交付前运行 `cd fo && ./gradlew build`，确保所有测试和验证全部通过。
 3. **前端全中文**：所有用户可见的界面文本（模块名、设置名、设置描述、下拉框选项、开关、按钮、提示消息、通知、聊天输出）一律中文；不得出现英文 UI 文本（代码标识符、物品 ID、内部类名除外）。新增/修改 UI 文本时必须自查是否中文。
-4. **命名规范（FO 大写 + 版本号不带 V + 产物带 MC 版本）**：**唯一权威来源是仓库根 `AGENTS.md` 的「命名规范」一节**，本节与之保持一致，冲突时以 `AGENTS.md` 为准。要点：① 版本号一律不带 `V` 前缀（写 `6.25`，不写 `V6.25`）；② 构建产物名 = **`FO-<mod版本>-<MC版本>.jar`**，例 `FO-6.25-1.21.11.jar`，由 `fo/build.gradle.kts` 从 `fo/gradle/libs.versions.toml` 的 `mod-version` + `minecraft` 自动拼，**不得在别处写死**；③ Git tag = `<mod版本>`（如 `6.25`）；④ Release 标题 `FO <mod版本>-<MC版本>`，附件名 = 构建产物名；⑤ `fabric.mod.json` 的 `version` 用纯 mod 版本（不带 MC 后缀）；⑥ mod id 保持小写 `fo`，Java 包名 `com.fo.addon` 保持小写。
+4. **命名规范（FO 大写 + 版本号不带 V + 产物带 MC 版本）**：**唯一权威来源是仓库根 `AGENTS.md` 的「命名规范」一节**，本节与之保持一致，冲突时以 `AGENTS.md` 为准。要点：① 版本号一律不带 `V` 前缀（写 `6.7p36`，不写 `V6.25`）；② 构建产物名 = **`FO-<mod版本>-<MC版本>.jar`**，例 `FO-6.7p36-26.3.jar`，由 `fo/build.gradle.kts` 从 `fo/gradle/libs.versions.toml` 的 `mod-version` + `minecraft` 自动拼，**不得在别处写死**；③ Git tag = `<mod版本>`（如 `6.7p36`）；④ Release 标题 `FO <mod版本>-<MC版本>`，附件名 = 构建产物名；⑤ `fabric.mod.json` 的 `version` 用纯 mod 版本（不带 MC 后缀）；⑥ mod id 保持小写 `fo`，Java 包名 `com.fo.addon` 保持小写。
 5. **先讨论后动手**：涉及功能方案、模块设计、功能取舍、行为变化、默认值调整等方向性决策时，必须先给出方案供用户讨论，由用户确定后再更改代码；未经用户拍板，不得直接动手实现。
-6. **交付**：把 `fo/build/libs/FO-<mod版本>-<MC版本>.jar`（两段都随 `fo/gradle/libs.versions.toml` 的 `mod-version` 与 `minecraft` 走，当前为 `fo/build/libs/FO-6.25-1.21.11.jar`）通过 `present_files` 交给用户。
+6. **交付**：把 `fo/build/libs/FO-<mod版本>-<MC版本>.jar`（两段都随 `fo/gradle/libs.versions.toml` 的 `mod-version` 与 `minecraft` 走，当前为 `fo/build/libs/FO-6.7p36-26.3.jar`）通过 `present_files` 交给用户。
 
 ## 工作流
 
@@ -29,7 +29,7 @@ license: CC0-1.0
 3. **补测试**：为行为变更写/更新断言（尤其是判定类逻辑，必须覆盖新行为）。
 4. **验证**：`cd fo && ./gradlew build` 全绿（BUILD SUCCESSFUL + 全部测试 0 failures / 0 errors）。Windows 上按 `docs/windows-build.md` 用本地 `gradle.bat` + `-Dorg.gradle.java.home=<JDK>`，不要用 `gradlew.bat`。
 5. **提交**：`git add` 相关文件 → commit（仓库根）。本机 `github.com` 的 git 传输会超时，推送改用 `api.github.com` 的 REST API（blob → tree → commit → 推进 `main`），见 `docs/scripts/gh-deliver.ps1`；**提交前先按 blob SHA-1 与远端 tree 比对，避免用旧副本覆盖别人的新提交**。
-6. **发布 jar 走 GitHub Release（不再归档到 releases/），且仓库里只保留最新版一个 jar**：`cd fo && ./gradlew build` 产出 `fo/build/libs/FO-<mod版本>-<MC版本>.jar`（如 `FO-6.25-1.21.11.jar`）后：① commit（信息含模块名+摘要）→ ② 打 tag `<mod版本>`（**不带 V**，如 `6.25`，指向该版本 commit）→ ③ 建正式 Release：**标题 `FO <mod版本>-<MC版本>`**（如 `FO 6.25-1.21.11`）、**附件为构建产物，附件名必须与产物同名**（禁止改名、加 V、加短哈希/日期），命令形如 `gh release create 6.25 fo/build/libs/FO-6.25-1.21.11.jar --title "FO 6.25-1.21.11" --notes "<更新说明>"` → ④ **删掉此前所有 Release 的 `.jar` 附件**（`gh release list` → `gh release view <tag> --json assets` → `gh release delete-asset <tag> <name> --yes`；或按 `AGENTS.md` 的「Release 附件清理」走 REST API），删完必须校验「全仓只剩本次这一个 jar 附件」→ ⑤ 在 `releases/README.md` 版本清单加一行（版本 | commit | 说明）。**releases/*.jar 已被 `.gitignore` 拦截，禁止再往仓库提交 jar**；旧版 jar 不再保留（用户口径），Release 的历史说明与 tag 保留、只删附件。纯文档改动**不要**发版、不要建 Release，也**不要**借机去删已有 Release 的附件。
+6. **发布 jar 走 GitHub Release（不再归档到 releases/），且仓库里只保留最新版一个 jar**：`cd fo && ./gradlew build` 产出 `fo/build/libs/FO-<mod版本>-<MC版本>.jar`（如 `FO-6.7p36-26.3.jar`）后：① commit（信息含模块名+摘要）→ ② 打 tag `<mod版本>`（**不带 V**，如 `6.7p36`，指向该版本 commit）→ ③ 建正式 Release：**标题 `FO <mod版本>-<MC版本>`**（如 `FO 6.25-1.21.11`）、**附件为构建产物，附件名必须与产物同名**（禁止改名、加 V、加短哈希/日期），命令形如 `gh release create 6.25 fo/build/libs/FO-6.7p36-26.3.jar --title "FO 6.25-1.21.11" --notes "<更新说明>"` → ④ **删掉此前所有 Release 的 `.jar` 附件**（`gh release list` → `gh release view <tag> --json assets` → `gh release delete-asset <tag> <name> --yes`；或按 `AGENTS.md` 的「Release 附件清理」走 REST API），删完必须校验「全仓只剩本次这一个 jar 附件」→ ⑤ 在 `releases/README.md` 版本清单加一行（版本 | commit | 说明）。**releases/*.jar 已被 `.gitignore` 拦截，禁止再往仓库提交 jar**；旧版 jar 不再保留（用户口径），Release 的历史说明与 tag 保留、只删附件。纯文档改动**不要**发版、不要建 Release，也**不要**借机去删已有 Release 的附件。
 7. **交付**：`present_files` 交付新 jar，并告知用户改动点与测试建议。
 
 ## 仓库拉取（与 AGENTS.md 硬性规范 7 一致）
