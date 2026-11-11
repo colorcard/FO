@@ -16,14 +16,13 @@ import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import meteordevelopment.meteorclient.utils.player.SlotUtils;
 import meteordevelopment.meteorclient.utils.render.MeteorToast;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.component.type.ItemEnchantmentsComponent;
-import net.minecraft.enchantment.EnchantmentHelper;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.screen.slot.SlotActionType;
-
+import net.minecraft.core.Holder;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -135,7 +134,7 @@ public class AutoTrash extends Module {
                 .icon(Items.SHULKER_BOX)
                 .text(text)
                 .build();
-            mc.getToastManager().add(toast);
+            mc.gui.toastManager().addToast(toast);
         } catch (Exception ignored) {
             // 通知失败不影响联动主逻辑
         }
@@ -167,7 +166,7 @@ public class AutoTrash extends Module {
                 .icon(Items.SHULKER_BOX)
                 .text("白名单模式，已确保沙在保留列表（" + list.size() + " 项）")
                 .build();
-            mc.getToastManager().add(toast);
+            mc.gui.toastManager().addToast(toast);
         } catch (Exception ignored) {
         }
     }
@@ -203,7 +202,7 @@ public class AutoTrash extends Module {
                 .icon(Items.SHULKER_BOX)
                 .text("白名单模式，已确保石英/钻石/钻石块/残骸在保留列表（" + list.size() + " 项）")
                 .build();
-            mc.getToastManager().add(toast);
+            mc.gui.toastManager().addToast(toast);
         } catch (Exception ignored) {
         }
     }
@@ -233,11 +232,11 @@ public class AutoTrash extends Module {
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (!isActive()) return;   // 6.41: 事件订阅残留兜底——掉线重连后 UI 已关闭仍触发过 onTick，未激活绝不扔垃圾
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
 
         // 防误丢：只在无界面时扫背包 —— 槽位映射（SlotUtils.indexToId）按玩家背包设计，
         // 开着箱子等界面时 currentScreenHandler 不同，槽位会错位，可能把界面里的东西丢错。
-        if (mc.currentScreen != null) return;
+        if (mc.gui.screen() != null) return;
 
         List<Item> list = items.get();
         boolean listConfigured = !list.isEmpty();
@@ -265,17 +264,17 @@ public class AutoTrash extends Module {
         // misaka 式批量：一轮扫描把所有命中的堆一次全扔（V4.38 前每轮只扔一种，眼花缭乱）
         int droppedCount = 0;
         int start = excludeHotbar.get() ? 9 : 0;
-        int end = mc.player.getInventory().size();
+        int end = mc.player.getInventory().getContainerSize();
 
         for (int i = start; i < end; i++) {
             // 保护：跳过当前主手槽，避免误丢正在使用的物品
             if (i == mc.player.getInventory().getSelectedSlot()) continue;
 
-            ItemStack stack = mc.player.getInventory().getStack(i);
+            ItemStack stack = mc.player.getInventory().getItem(i);
             if (stack.isEmpty()) continue;
 
             boolean drop;
-            if (stack.isOf(Items.ENCHANTED_BOOK) && rulesConfigured) {
+            if (stack.is(Items.ENCHANTED_BOOK) && rulesConfigured) {
                 // V6.20：附魔书规则优先——命中任一规则（书里任一附魔达标）或物品列表含附魔书物品，视同在名单，
                 // 统一走黑白名单判定；未命中的书在白名单=丢、黑名单=留
                 boolean inList = TrashLogic.bookMatches(rules, bookEnchantIds(stack))
@@ -308,23 +307,23 @@ public class AutoTrash extends Module {
 
     /** 该附魔书堆内的附魔：附魔 ID（minecraft:xxx）→ 等级。 */
     private Map<String, Integer> bookEnchantIds(ItemStack stack) {
-        ItemEnchantmentsComponent enchantments = EnchantmentHelper.getEnchantments(stack);
+        ItemEnchantments enchantments = EnchantmentHelper.getEnchantmentsForCrafting(stack);
         Map<String, Integer> out = new HashMap<>();
-        for (Object2IntMap.Entry<RegistryEntry<net.minecraft.enchantment.Enchantment>> entry : enchantments.getEnchantmentEntries()) {
-            entry.getKey().getKey().ifPresent(key -> out.put(key.getValue().toString(), entry.getIntValue()));
+        for (Object2IntMap.Entry<Holder<net.minecraft.world.item.enchantment.Enchantment>> entry : enchantments.entrySet()) {
+            entry.getKey().unwrapKey().ifPresent(key -> out.put(key.identifier().toString(), entry.getIntValue()));
         }
         return out;
     }
 
     private void dropItem(int slot) {
-        if (mc.interactionManager == null) return;
+        if (mc.gameMode == null) return;
 
         int screenSlot = SlotUtils.indexToId(slot);
-        mc.interactionManager.clickSlot(
-            mc.player.currentScreenHandler.syncId,
+        mc.gameMode.handleContainerInput(
+            mc.player.containerMenu.containerId,
             screenSlot,
             dropAll.get() ? 1 : 0, // 1=整组(Ctrl+Q)，0=单个(Q)
-            SlotActionType.THROW,
+            ContainerInput.THROW,
             mc.player
         );
     }

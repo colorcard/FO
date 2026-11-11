@@ -34,33 +34,33 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.AbstractSignBlock;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.ChestBlock;
-import net.minecraft.block.EnderChestBlock;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.block.TrapdoorBlock;
-import net.minecraft.block.entity.SignBlockEntity;
-import net.minecraft.block.enums.ChestType;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.projectile.thrown.EnderPearlEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.play.PlayerPositionLookS2CPacket;
-import net.minecraft.registry.Registries;
-import net.minecraft.screen.GenericContainerScreenHandler;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.ShulkerBoxScreenHandler;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
-
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.ShulkerBoxMenu;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.EnderChestBlock;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.SignBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
+import net.minecraft.world.level.block.entity.SignBlockEntity;
+import net.minecraft.world.level.block.entity.SignTextSlot;
+import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -807,7 +807,7 @@ public class StashMover extends Module {
      * 防卡参数（V6.7p9，照搬 ZenithProxy futa 插件 AntiStuck 的判定思路）。
      *
      * <p>原理：人一旦被卡住（挤在方块里/被水柱顶住），服务端会不停发位置校正包
-     * （{@link PlayerPositionLookS2CPacket}），客户端每收一个就回一个确认包。
+     * （{@link ClientboundPlayerPositionPacket}），客户端每收一个就回一个确认包。
      * 所以「5 秒内收到 6 次」基本就等于卡住了——正常玩不会这么频繁。
      * 检测到之后：松键 → 停寻路 → 等 20 tick 让状态稳定 → 寻路到最近的能站人的格子。
      */
@@ -994,7 +994,7 @@ public class StashMover extends Module {
     private long nextPearlCheckTick;
     private StashMoveLogic.Zone trioZone = StashMoveLogic.Zone.UNKNOWN;
     private long teleportWaitStart;
-    private Vec3d lastPos;
+    private Vec3 lastPos;
 
     // V6.7p7：到达后等待 + 逐步诊断
     /** 被拉过来后开始等待的 tick（ARRIVE_WAIT 截止点）。 */
@@ -1128,7 +1128,7 @@ public class StashMover extends Module {
         antiStuckCooldownUntil = 0;
         antiStuckCount = 0;
         antiStuckPending = false;
-        lastPos = mc.player != null ? mc.player.getEntityPos() : null;
+        lastPos = mc.player != null ? mc.player.position() : null;
 
         if (isTrioMover()) {
             // V6.7p8：这里**不判区**。启动位置是随机的，判区 + 距离检查统一放到 tickTrioMover 的
@@ -1171,7 +1171,7 @@ public class StashMover extends Module {
      */
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
-        if (!(event.packet instanceof PlayerPositionLookS2CPacket)) return;
+        if (!(event.packet instanceof ClientboundPlayerPositionPacket)) return;
         // V6.7p13：搬运端（双号/三人1号）与拉珍珠端（双号/三人2/3号）都参与防卡
         if (!isMoverRole() && !isPullerRole()) return;
 
@@ -1193,7 +1193,7 @@ public class StashMover extends Module {
         info("我卡住了！请手动检查站位");
         if (debug.get()) {
             info("[防卡] 第 " + antiStuckCount + " 次，状态=" + trioState + "，在水里="
-                + (mc.player.isTouchingWater() ? "是" : "否") + "，碰撞=" + mc.player.horizontalCollision);
+                + (mc.player.isInWater() ? "是" : "否") + "，碰撞=" + mc.player.horizontalCollision);
         }
     }
 
@@ -1228,14 +1228,14 @@ public class StashMover extends Module {
      * <p>先在原地上下试，再逐圈向外扩到 5 格——和 ZenithProxy 的 `findSafePosition` 一个思路。
      */
     private BlockPos findAntiStuckSpot() {
-        BlockPos base = mc.player.getBlockPos();
+        BlockPos base = mc.player.blockPosition();
         int[] dyOrder = {0, -1, 1, -2, 2, -3, 3};
         for (int r = 1; r <= 5; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     for (int dy : dyOrder) {
-                        BlockPos p = base.add(dx, dy, dz);
+                        BlockPos p = base.offset(dx, dy, dz);
                         if (isStandable(p)) return p;
                     }
                 }
@@ -1248,18 +1248,18 @@ public class StashMover extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
         tick++;
-        lastPos = lastPos == null ? mc.player.getEntityPos() : lastPos;
+        lastPos = lastPos == null ? mc.player.position() : lastPos;
 
         // 容器已打开 → 说明上一次点击成功，点击失败计数归零
         if (containerOpen()) openAttempts = 0;
 
         // 投完珍珠立即按 S 后退，避免站在气泡柱上触发珍珠（每 tick 处理，不受动作冷却影响）
         if (backoffTicks > 0) {
-            mc.options.backKey.setPressed(true);
+            mc.options.keyDown.setDown(true);
             backoffTicks--;
-            if (backoffTicks <= 0) mc.options.backKey.setPressed(false);
+            if (backoffTicks <= 0) mc.options.keyDown.setDown(false);
         }
 
         // V6.7p9：防卡流程优先，进行中时状态机整体让路（否则一边救一边按原逻辑走，越救越卡）
@@ -1299,7 +1299,7 @@ public class StashMover extends Module {
         } catch (Exception e) {
             if (debug.get()) error("自动搬运出错: " + e);
         } finally {
-            if (lastPos != null) lastPos = mc.player.getEntityPos();
+            if (lastPos != null) lastPos = mc.player.position();
         }
     }
 
@@ -1375,7 +1375,7 @@ public class StashMover extends Module {
      */
     private void dualZoneCheck() {
         BlockPos store = storeChest.get();
-        if (store.equals(BlockPos.ORIGIN)) {
+        if (store.equals(BlockPos.ZERO)) {
             enterStuck("请先设置存储箱位置");
             return;
         }
@@ -1413,12 +1413,12 @@ public class StashMover extends Module {
         switch (chestMode.get()) {
             case SINGLE -> {
                 BlockPos t = targetChest.get();
-                return t.equals(BlockPos.ORIGIN) ? null : t;
+                return t.equals(BlockPos.ZERO) ? null : t;
             }
             case RANGE -> {
                 BlockPos a = pos1.get();
                 BlockPos b = pos2.get();
-                if (a.equals(BlockPos.ORIGIN) || b.equals(BlockPos.ORIGIN)) return null;
+                if (a.equals(BlockPos.ZERO) || b.equals(BlockPos.ZERO)) return null;
                 return new BlockPos((a.getX() + b.getX()) / 2,
                     (a.getY() + b.getY()) / 2, (a.getZ() + b.getZ()) / 2);
             }
@@ -1432,7 +1432,7 @@ public class StashMover extends Module {
     private double nearestStoreAnchorDistanceXZ() {
         double best = Double.MAX_VALUE;
         for (BlockPos p : new BlockPos[]{storeChest.get(), pearlChest.get(), trapdoor.get()}) {
-            if (p == null || p.equals(BlockPos.ORIGIN)) continue;
+            if (p == null || p.equals(BlockPos.ZERO)) continue;
             double d = Math.hypot(mc.player.getX() - (p.getX() + 0.5),
                 mc.player.getZ() - (p.getZ() + 0.5));
             if (d < best) best = d;
@@ -1577,7 +1577,7 @@ public class StashMover extends Module {
     /** 这一 tick 是否刚被珍珠拉走（水平突跳 > 32 格）。 */
     private boolean dualTeleportJumpedNow() {
         if (lastPos == null || mc.player == null) return false;
-        Vec3d now = mc.player.getEntityPos();
+        Vec3 now = mc.player.position();
         return StashMoveLogic.teleportJumped(lastPos.x, lastPos.z, now.x, now.z, 32);
     }
 
@@ -1673,12 +1673,12 @@ public class StashMover extends Module {
      */
     private void dualSettle() {
         BlockPos stand = trapdoor.get();
-        if (stand.equals(BlockPos.ORIGIN)) {
+        if (stand.equals(BlockPos.ZERO)) {
             enterStuck("请先设置搬运活板门位置");
             return;
         }
-        BlockPos feet = mc.player.getBlockPos();
-        boolean inColumn = mc.player.isTouchingWater() || feet.equals(stand);
+        BlockPos feet = mc.player.blockPosition();
+        boolean inColumn = mc.player.isInWater() || feet.equals(stand);
         if (!inColumn) {
             debugMsg("[双号][脱离] 已离开气泡柱，去卸货");
             dualSettleStart = 0;
@@ -1700,7 +1700,7 @@ public class StashMover extends Module {
 
     private void dualTakePearl() {
         // 气泡柱里已经有自己的珍珠就不用再投一颗（省珍珠、也避免重复投放触发）
-        if (ownPearlInColumn(trapdoor.get().down(1))) {
+        if (ownPearlInColumn(trapdoor.get().below(1))) {
             closeScreen();
             moverState = MoverState.PUT_BACK;
             return;
@@ -1711,7 +1711,7 @@ public class StashMover extends Module {
             return;
         }
         BlockPos chestPos = pearlChest.get();
-        if (chestPos.equals(BlockPos.ORIGIN)) {
+        if (chestPos.equals(BlockPos.ZERO)) {
             enterStuck("请先设置珍珠箱位置");
             return;
         }
@@ -1722,7 +1722,7 @@ public class StashMover extends Module {
                 enterStuck("珍珠箱里没有珍珠");
                 return;
             }
-            clickSlot(slot, SlotActionType.QUICK_MOVE);
+            clickSlot(slot, ContainerInput.QUICK_MOVE);
             cooldown = Math.max(1, clickDelay.get());
             return;
         }
@@ -1731,7 +1731,7 @@ public class StashMover extends Module {
 
     private void dualThrow() {
         BlockPos stand = trapdoor.get();
-        if (stand.equals(BlockPos.ORIGIN)) {
+        if (stand.equals(BlockPos.ZERO)) {
             enterStuck("请先设置搬运活板门位置");
             return;
         }
@@ -1766,12 +1766,12 @@ public class StashMover extends Module {
                 afterPutBack();
                 return;
             }
-            clickSlot(slot, SlotActionType.QUICK_MOVE);
+            clickSlot(slot, ContainerInput.QUICK_MOVE);
             cooldown = Math.max(1, clickDelay.get());
             return;
         }
         BlockPos chestPos = pearlChest.get();
-        if (chestPos.equals(BlockPos.ORIGIN)) {
+        if (chestPos.equals(BlockPos.ZERO)) {
             enterStuck("请先设置珍珠箱位置");
             return;
         }
@@ -1813,11 +1813,11 @@ public class StashMover extends Module {
      */
     private void dualConfirmPearl() {
         BlockPos stand = trapdoor.get();
-        if (stand.equals(BlockPos.ORIGIN)) {
+        if (stand.equals(BlockPos.ZERO)) {
             enterStuck("请先设置搬运活板门位置");
             return;
         }
-        if (ownPearlInColumn(stand.down(1))) {
+        if (ownPearlInColumn(stand.below(1))) {
             pearlConfirmStreak++;
             if (StashMoveLogic.pearlConfirmed(pearlConfirmStreak, PEARL_CONFIRM_TICKS)) {
                 pearlConfirmedTick = tick;
@@ -1854,7 +1854,7 @@ public class StashMover extends Module {
 
     private void dualUnload() {
         BlockPos store = storeChest.get();
-        if (store.equals(BlockPos.ORIGIN)) {
+        if (store.equals(BlockPos.ZERO)) {
             enterStuck("请先设置存储箱位置");
             return;
         }
@@ -1903,7 +1903,7 @@ public class StashMover extends Module {
             return;
         }
         unloadedSomething = true;
-        clickSlot(slot, SlotActionType.QUICK_MOVE);
+        clickSlot(slot, ContainerInput.QUICK_MOVE);
         cooldown = Math.max(1, clickDelay.get());
         progress();
     }
@@ -1974,13 +1974,13 @@ public class StashMover extends Module {
     }
 
     private void dualSuicideLava() {
-        if (mc.player.isDead()) {
+        if (mc.player.isDeadOrDying()) {
             moverState = MoverState.DEAD_WAIT;
             return;
         }
         if (cachedLava == null || tick - lavaScanTick > 200) {
             lavaScanTick = tick;
-            cachedLava = findNearestLava(mc.player.getBlockPos(), lavaRadius.get());
+            cachedLava = findNearestLava(mc.player.blockPosition(), lavaRadius.get());
             if (cachedLava == null) {
                 warning("附近没有找到岩浆，改用指令自杀");
                 releaseForward();
@@ -1990,19 +1990,19 @@ public class StashMover extends Module {
                 return;
             }
         }
-        double distSq = mc.player.getBlockPos().getSquaredDistance(cachedLava);
+        double distSq = mc.player.blockPosition().distSqr(cachedLava);
         if (distSq <= 16) {
             faceBlock(cachedLava);
             forwardHeld = true;
-            mc.options.forwardKey.setPressed(true);
+            mc.options.keyUp.setDown(true);
             return;
         }
         if (!PathManagers.get().isPathing()) PathManagers.get().moveTo(cachedLava, true);
     }
 
     private void dualDeadWait() {
-        if (mc.player.isDead()) {
-            mc.player.requestRespawn();
+        if (mc.player.isDeadOrDying()) {
+            mc.player.respawn();
             releaseForward();
             // V6.7p14：重生后多等 2 秒——重生点的区块/箱子还没同步就开始搜箱会白跑一趟
             pearlConfirmedTick = 0;
@@ -2018,11 +2018,11 @@ public class StashMover extends Module {
 
     private void dualRefill() {
         BlockPos chestPos = targetChest.get();
-        if (chestPos.equals(BlockPos.ORIGIN)) {
+        if (chestPos.equals(BlockPos.ZERO)) {
             enterStuck("单箱子模式请先设置目标箱子位置");
             return;
         }
-        if (!(mc.world.getBlockState(chestPos).getBlock() instanceof ChestBlock)) {
+        if (!(mc.level.getBlockState(chestPos).getBlock() instanceof ChestBlock)) {
             enterStuck("目标箱子不存在");
             return;
         }
@@ -2083,7 +2083,7 @@ public class StashMover extends Module {
             }
             if (debug.get()) {
                 info("[启动] 判定在" + zoneName() + "（离最近区锚点 " + Math.round(near) + " 格），本区珍珠箱"
-                    + (zonePearlChest().equals(BlockPos.ORIGIN) ? "未配置" : "已配置"));
+                    + (zonePearlChest().equals(BlockPos.ZERO) ? "未配置" : "已配置"));
             }
             // 直接赋值：trioState 本来就是 SETTLE，走 setTrioState 会被「状态没变」挡掉而不打印
             trioState = TrioState.SETTLE;
@@ -2101,7 +2101,7 @@ public class StashMover extends Module {
         if ((trioState == TrioState.LOOT || trioState == TrioState.UNLOAD)
             && tick >= nextPearlCheckTick) {
             nextPearlCheckTick = tick + 100;
-            if (!ownPearlInColumn(trioTrapdoor().down(1))) {
+            if (!ownPearlInColumn(trioTrapdoor().below(1))) {
                 closeScreen();
                 releaseMovementKeys();
                 info("检测到本区珍珠消失（可能踩到气泡柱），重新投掷");
@@ -2205,7 +2205,7 @@ public class StashMover extends Module {
             }
             // V6.7p36：三号单箱 + 「等待箱子填充」→ 等刷新（含此前被拉黑过的场景）
             if (mode.get() == Mode.TRIO && sourceChestMode.get() == ChestMode.SINGLE
-                && waitForFill.get() && !sourceTarget.get().equals(BlockPos.ORIGIN)) {
+                && waitForFill.get() && !sourceTarget.get().equals(BlockPos.ZERO)) {
                 refillStartTick = tick;
                 blacklist.remove(sourceTarget.get());
                 info("待搬运箱已空，等待刷新…");
@@ -2220,7 +2220,7 @@ public class StashMover extends Module {
 
     private void trioUnload() {
         BlockPos store = trioStoreChest.get();
-        if (store.equals(BlockPos.ORIGIN)) {
+        if (store.equals(BlockPos.ZERO)) {
             enterStuck("三号模式请先设置存储箱位置");
             return;
         }
@@ -2229,7 +2229,7 @@ public class StashMover extends Module {
                 finishTrioUnload();
                 return;
             }
-            if (!(mc.world.getBlockState(store).getBlock() instanceof ChestBlock)) {
+            if (!(mc.level.getBlockState(store).getBlock() instanceof ChestBlock)) {
                 enterStuck("存储箱不存在");
                 return;
             }
@@ -2261,7 +2261,7 @@ public class StashMover extends Module {
             return;
         }
         unloadedSomething = true;
-        clickSlot(slot, SlotActionType.QUICK_MOVE);
+        clickSlot(slot, ContainerInput.QUICK_MOVE);
         cooldown = Math.max(1, clickDelay.get());
         progress();
     }
@@ -2288,11 +2288,11 @@ public class StashMover extends Module {
      */
     private void trioRefill() {
         BlockPos chestPos = sourceTarget.get();
-        if (chestPos.equals(BlockPos.ORIGIN)) {
+        if (chestPos.equals(BlockPos.ZERO)) {
             enterStuck("单箱子模式请先设置待搬运箱位置");
             return;
         }
-        if (!(mc.world.getBlockState(chestPos).getBlock() instanceof ChestBlock)) {
+        if (!(mc.level.getBlockState(chestPos).getBlock() instanceof ChestBlock)) {
             enterStuck("待搬运箱不存在");
             return;
         }
@@ -2344,7 +2344,7 @@ public class StashMover extends Module {
 
     private void trioRestock() {
         BlockPos chestPos = zonePearlChest();
-        if (chestPos == null || chestPos.equals(BlockPos.ORIGIN)) {
+        if (chestPos == null || chestPos.equals(BlockPos.ZERO)) {
             enterStuck("请设置" + zoneName() + "的珍珠箱位置（或「通用珍珠箱」）");
             return;
         }
@@ -2358,7 +2358,7 @@ public class StashMover extends Module {
             return;
         }
         // V6.7p4：取消 64 格距离闸——珍珠不够就寻路过去补（走不过去由看门狗报警）
-        double distSq = mc.player.getBlockPos().getSquaredDistance(chestPos);
+        double distSq = mc.player.blockPosition().distSqr(chestPos);
         if (!containerOpen()) {
             if (restockPhase != 0) {
                 warning("补货途中界面被关掉了，重置补货步骤（若少了珍珠请检查）");
@@ -2366,7 +2366,7 @@ public class StashMover extends Module {
                 restockPutbackTries = 0;
             }
             // 开新容器前先关掉可能残留的界面，避免读到别的容器
-            if (mc.currentScreen != null) {
+            if (mc.gui.screen() != null) {
                 closeScreen();
                 cooldown = 5;
                 return;
@@ -2422,7 +2422,7 @@ public class StashMover extends Module {
                     enterStuck("背包没有空位放珍珠");
                     return;
                 }
-                clickSlot(restockChestSlot, SlotActionType.PICKUP);   // 拿起整堆（光标上）
+                clickSlot(restockChestSlot, ContainerInput.PICKUP);   // 拿起整堆（光标上）
                 restockPhase = 1;
                 restockPutbackTries = 0;
                 cooldown = Math.max(1, clickDelay.get());
@@ -2431,7 +2431,7 @@ public class StashMover extends Module {
             case 1 -> {
                 // 逐颗右键放到背包珍珠堆；光标空了（箱里那堆不够）也算这一步结束
                 if (restockStepsLeft > 0 && cursorPearlCount() > 0) {
-                    clickSlot(restockInvSlot, SlotActionType.PICKUP, 1);
+                    clickSlot(restockInvSlot, ContainerInput.PICKUP, 1);
                     restockStepsLeft--;
                     cooldown = Math.max(1, clickDelay.get());
                     progress();
@@ -2448,14 +2448,14 @@ public class StashMover extends Module {
                 }
                 // 余量放回：优先原槽（空着或还是珍珠），否则找任意空容器槽
                 int putback = putbackSlot();
-                if (putback >= 0) clickSlot(putback, SlotActionType.PICKUP);
+                if (putback >= 0) clickSlot(putback, ContainerInput.PICKUP);
                 restockPutbackTries++;
                 cooldown = Math.max(1, clickDelay.get());
                 progress();
                 if (restockPutbackTries > 4) {
                     warning("珍珠放不回箱子，改塞进背包空格");
                     int inv = findEmptyInventorySlot();
-                    if (inv >= 0) clickSlot(inv, SlotActionType.PICKUP);
+                    if (inv >= 0) clickSlot(inv, ContainerInput.PICKUP);
                 }
             }
             case 3 -> {
@@ -2487,17 +2487,17 @@ public class StashMover extends Module {
      * <p>优先用本区专用坐标，没填就回退「通用珍珠箱」（兼容只放了一个箱子的老配置）。
      * 这样补珍珠永远在本区内完成，不会出现「人在 2 号点、珍珠箱在 3 号点」跨区补货的死结。
      *
-     * @return 珍珠箱坐标；两处都没填时返回 {@link BlockPos#ORIGIN}
+     * @return 珍珠箱坐标；两处都没填时返回 {@link BlockPos#ZERO}
      */
     private BlockPos zonePearlChest() {
         BlockPos own = trioZone == StashMoveLogic.Zone.SOURCE ? sourcePearlChest.get() : storePearlChest.get();
         BlockPos common = trioPearlChest.get();
-        boolean ownSet = own != null && !own.equals(BlockPos.ORIGIN);
-        boolean commonSet = common != null && !common.equals(BlockPos.ORIGIN);
+        boolean ownSet = own != null && !own.equals(BlockPos.ZERO);
+        boolean commonSet = common != null && !common.equals(BlockPos.ZERO);
         return switch (StashMoveLogic.pickPearlChestSlot(ownSet, commonSet)) {
             case StashMoveLogic.PEARL_CHEST_ZONE -> own;
             case StashMoveLogic.PEARL_CHEST_COMMON -> common;
-            default -> BlockPos.ORIGIN;
+            default -> BlockPos.ZERO;
         };
     }
 
@@ -2520,22 +2520,22 @@ public class StashMover extends Module {
     /** 真实转头：直接改玩家朝向并保持（不会自动恢复）。 */
     private void turnTo(float yaw, float pitch) {
         if (mc.player == null) return;
-        mc.player.setYaw(yaw);
-        mc.player.setPitch(pitch);
+        mc.player.setYRot(yaw);
+        mc.player.setXRot(pitch);
     }
 
     /** 真实转头看向某个坐标。 */
-    private void lookAt(Vec3d target) {
+    private void lookAt(Vec3 target) {
         if (mc.player == null) return;
         float[] yp = FacingLogic.yawPitchTo(target.x, target.y, target.z,
-            mc.player.getX(), mc.player.getEyePos().y, mc.player.getZ());
+            mc.player.getX(), mc.player.getEyePosition().y, mc.player.getZ());
         turnTo(yp[0], yp[1]);
     }
 
     /** 朝目标点的 pitch（度，向下为负），yaw 保持不变。 */
-    private float pitchTo(Vec3d target) {
+    private float pitchTo(Vec3 target) {
         return FacingLogic.yawPitchTo(target.x, target.y, target.z,
-            mc.player.getX(), mc.player.getEyePos().y, mc.player.getZ())[1];
+            mc.player.getX(), mc.player.getEyePosition().y, mc.player.getZ())[1];
     }
 
     /**
@@ -2544,24 +2544,24 @@ public class StashMover extends Module {
      * <p>从水面那格往下走，直到第一格不是水/气泡柱的方块（通常就是灵魂沙），返回它的中心。
      * 瞄腔底比瞄最上面那格水更垂直，不容易被柱壁/门框吃掉。找不到腔底就退回水面格中心。
      */
-    private Vec3d columnAimPoint(BlockPos water) {
-        if (mc.world == null) return Vec3d.ofCenter(water);
+    private Vec3 columnAimPoint(BlockPos water) {
+        if (mc.level == null) return Vec3.atCenterOf(water);
         BlockPos p = water;
         for (int i = 0; i < 64; i++) {
-            var st = mc.world.getBlockState(p);
-            boolean waterLike = !st.getFluidState().isEmpty() || st.isOf(Blocks.BUBBLE_COLUMN);
+            var st = mc.level.getBlockState(p);
+            boolean waterLike = !st.getFluidState().isEmpty() || st.is(Blocks.BUBBLE_COLUMN);
             if (!waterLike) break;
-            p = p.down();
+            p = p.below();
         }
-        return Vec3d.ofCenter(p);
+        return Vec3.atCenterOf(p);
     }
 
     /** 真实转头看向方块中心，并在本 tick 移动包发出后点击它（顺序：朝向 → 交互）。 */
     private void realClick(BlockPos pos) {
         if (pos == null) return;
-        lookAt(Vec3d.ofCenter(pos));
+        lookAt(Vec3.atCenterOf(pos));
         afterMoveAction = () -> {
-            if (mc.player == null || mc.interactionManager == null) return;
+            if (mc.player == null || mc.gameMode == null) return;
             // V6.7p15：不要依赖 mc.crosshairTarget —— 它由渲染线程按上一帧朝向更新，
             // 同一 tick 刚 lookAt 后通常还没指向目标，会落到手搓包分支（边界命中点 + 无预测）。
             // 直接用玩家当前朝向做一次客户端 raycast，拿到真实命中点和面，再走 interactBlock。
@@ -2570,19 +2570,19 @@ public class StashMover extends Module {
             // 射线打到搭档那半块时旧写法一律判“没对上”→ 每次点击都掉进手搓包兜底（无预测）；
             // 而两半块点开的是同一个箱子，认它没有副作用。
             BlockPos partner = chestPartner(pos);
-            if (mc.player.raycast(openReach.get() + 1.5, 1.0F, false) instanceof BlockHitResult hit
+            if (mc.player.pick(openReach.get() + 1.5, 1.0F, false) instanceof BlockHitResult hit
                 && isSameChest(hit.getBlockPos(), pos, partner)) {
-                mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
+                mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
                 return;
             }
             // 兜底：准星目标如果已经同步到目标，也走真实交互
-            if (mc.crosshairTarget instanceof BlockHitResult hit
+            if (mc.hitResult instanceof BlockHitResult hit
                 && isSameChest(hit.getBlockPos(), pos, partner)) {
-                mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, hit);
+                mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
                 return;
             }
             // 目标被挡住/射线没命中 → 手搓包兜底（命中点已向方块内收 0.001 格）
-            BlockClicker.clickBlockNoRotate(pos, Hand.MAIN_HAND);
+            BlockClicker.clickBlockNoRotate(pos, InteractionHand.MAIN_HAND);
         };
     }
 
@@ -2599,15 +2599,15 @@ public class StashMover extends Module {
      * 与原版 ChestBlock 字节码一致）。
      */
     private BlockPos chestPartner(BlockPos pos) {
-        if (pos == null || mc.world == null) return null;
-        var state = mc.world.getBlockState(pos);
+        if (pos == null || mc.level == null) return null;
+        var state = mc.level.getBlockState(pos);
         if (!(state.getBlock() instanceof ChestBlock)) return null;
-        ChestType type = state.get(ChestBlock.CHEST_TYPE);
+        ChestType type = state.getValue(ChestBlock.TYPE);
         if (type == ChestType.SINGLE) return null;
-        Direction facing = state.get(ChestBlock.FACING);
+        Direction facing = state.getValue(ChestBlock.FACING);
         int[] off = StashMoveLogic.chestOtherHalfOffset(type == ChestType.LEFT,
-            facing.getOffsetX(), facing.getOffsetZ());
-        return pos.add(off[0], 0, off[1]);
+            facing.getStepX(), facing.getStepZ());
+        return pos.offset(off[0], 0, off[1]);
     }
 
     /**
@@ -2637,7 +2637,7 @@ public class StashMover extends Module {
     }
 
     private void addProtectedAnchor(List<int[]> out, BlockPos anchor) {
-        if (anchor == null || anchor.equals(BlockPos.ORIGIN)) return;
+        if (anchor == null || anchor.equals(BlockPos.ZERO)) return;
         out.add(new int[]{anchor.getX(), anchor.getY(), anchor.getZ()});
         BlockPos partner = chestPartner(anchor);
         if (partner != null) out.add(new int[]{partner.getX(), partner.getY(), partner.getZ()});
@@ -2665,8 +2665,8 @@ public class StashMover extends Module {
     /** 朝某根柱子的气泡柱心真实转头（V6.7p13 参数化，供共享投掷子流程用）。 */
     private void faceColumnAt(BlockPos td) {
         if (mc.player == null) return;
-        if (td == null || td.equals(BlockPos.ORIGIN)) return;
-        lookAt(Vec3d.ofCenter(td.down(1)));
+        if (td == null || td.equals(BlockPos.ZERO)) return;
+        lookAt(Vec3.atCenterOf(td.below(1)));
     }
 
     /**
@@ -2675,14 +2675,14 @@ public class StashMover extends Module {
      */
     private void trioSettle() {
         BlockPos stand = trioTrapdoor();
-        if (stand == null || stand.equals(BlockPos.ORIGIN)) {
+        if (stand == null || stand.equals(BlockPos.ZERO)) {
             enterStuck("请先设置" + zoneName() + "的活板门位置");
             return;
         }
         faceColumn();
         // V6.7p8：这里只处理「人就在柱子附近」的情况，不把远处的人硬拽过来
         //（启动时可能站在珍珠箱/存储箱旁，先走去柱子毫无意义；投掷阶段才需要站位）。
-        Vec3d t = Vec3d.ofCenter(stand);
+        Vec3 t = Vec3.atCenterOf(stand);
         double dist = Math.hypot(t.x - mc.player.getX(), t.z - mc.player.getZ());
         if (dist > 8.0) {
             setTrioState(TrioState.RESTOCK, "离柱子 " + Math.round(dist) + " 格，先去补珍珠");
@@ -2693,7 +2693,7 @@ public class StashMover extends Module {
         if (settlePosition(stand)) {
             debugMsg("[脱离] 已站到柱子旁");
             setTrioState(TrioState.RESTOCK, "已站到柱子旁，本区珍珠箱"
-                + (zonePearlChest().equals(BlockPos.ORIGIN) ? "未配置" : "已配置"));
+                + (zonePearlChest().equals(BlockPos.ZERO) ? "未配置" : "已配置"));
             cooldown = PACE_SETTLE_DONE;
         }
     }
@@ -2708,8 +2708,8 @@ public class StashMover extends Module {
      * 门板碰撞箱」，门一关就什么都读不出，只能退回环形搜索，于是站到南/北侧去投。
      *
      * <p>四种告示牌（立牌 / 墙牌 / 挂牌 / 墙挂牌）都由
-     * {@link AbstractSignBlock#getRotationDegrees} 给出「文字正面朝哪」的角度，
-     * 直接 {@link Direction#fromHorizontalDegrees} 即可，不用自己按 ROTATION 算。
+     * {@link SignBlock#getYRotationDegrees} 给出「文字正面朝哪」的角度，
+     * 直接 {@link Direction#fromYRot} 即可，不用自己按 ROTATION 算。
      *
      * <p>扫描顺序：先把「正上方」1~3 格扫完（立牌/挂牌/水下的墙牌都可能正好在这一列），
      * 再扫四个水平邻格（贴旁边墙上的墙牌会偏出 1 格）。
@@ -2717,17 +2717,17 @@ public class StashMover extends Module {
      * @return 牌面朝向；1~3 格内没有告示牌时返回 null
      */
     private Direction signThrowSide(BlockPos trapdoor) {
-        if (mc.world == null) return null;
+        if (mc.level == null) return null;
         // 第一遍只扫「正上方」：立牌/挂牌/水下的墙牌都可能正好在这一列
         for (int dy = 1; dy <= SIGN_SCAN_UP; dy++) {
-            Direction face = signFaceAt(trapdoor.up(dy));
+            Direction face = signFaceAt(trapdoor.above(dy));
             if (face != null) return face;
         }
         // 第二遍才扫四个邻格：贴在旁边墙上的墙牌会偏出 1 格
         for (int dy = 1; dy <= SIGN_SCAN_UP; dy++) {
-            BlockPos base = trapdoor.up(dy);
+            BlockPos base = trapdoor.above(dy);
             for (Direction h : HORIZONTAL_DIRS) {
-                Direction face = signFaceAt(base.offset(h));
+                Direction face = signFaceAt(base.relative(h));
                 if (face != null) return face;
             }
         }
@@ -2736,9 +2736,9 @@ public class StashMover extends Module {
 
     /** 该格是告示牌就返回牌面朝向，否则 null。 */
     private Direction signFaceAt(BlockPos p) {
-        var st = mc.world.getBlockState(p);
-        if (!(st.getBlock() instanceof AbstractSignBlock sign)) return null;
-        Direction face = Direction.fromHorizontalDegrees(sign.getRotationDegrees(st));
+        var st = mc.level.getBlockState(p);
+        if (!(st.getBlock() instanceof SignBlock sign)) return null;
+        Direction face = Direction.fromYRot(sign.getYRotationDegrees(st));
         return face.getAxis().isHorizontal() ? face : null;
     }
 
@@ -2760,12 +2760,12 @@ public class StashMover extends Module {
      * @return 该站的一侧；三个来源都读不出时返回 null（投掷阶段会拒绝侧站）
      */
     private Direction throwFrontSide(BlockPos trapdoor) {
-        if (mc.world == null || trapdoor == null) return null;
-        var st = mc.world.getBlockState(trapdoor);
-        if (!(st.getBlock() instanceof TrapdoorBlock)) return null;
+        if (mc.level == null || trapdoor == null) return null;
+        var st = mc.level.getBlockState(trapdoor);
+        if (!(st.getBlock() instanceof TrapDoorBlock)) return null;
 
         BoxSide sign = boxSideOf(signThrowSide(trapdoor));
-        BoxSide facing = boxSideOf(st.get(TrapdoorBlock.FACING));
+        BoxSide facing = boxSideOf(st.getValue(TrapDoorBlock.FACING));
         BoxSide panel = boxSideOf(openLidSide(trapdoor));
         BoxSide picked = StashMoveLogic.pickThrowSide(sign, facing, panel);
 
@@ -2819,12 +2819,12 @@ public class StashMover extends Module {
      * @return 门板贴着的那一侧；关着 / 不是活板门 / 形状不可判时返回 null
      */
     private Direction openLidSide(BlockPos trapdoor) {
-        var st = mc.world.getBlockState(trapdoor);
-        if (!(st.getBlock() instanceof TrapdoorBlock)) return null;
-        if (!st.get(TrapdoorBlock.OPEN)) return null;   // 关着是平铺的薄板，不挡任何一侧
-        VoxelShape shape = st.getCollisionShape(mc.world, trapdoor);
+        var st = mc.level.getBlockState(trapdoor);
+        if (!(st.getBlock() instanceof TrapDoorBlock)) return null;
+        if (!st.getValue(TrapDoorBlock.OPEN)) return null;   // 关着是平铺的薄板，不挡任何一侧
+        VoxelShape shape = st.getCollisionShape(mc.level, trapdoor);
         if (shape.isEmpty()) return null;
-        Box b = shape.getBoundingBox();
+        AABB b = shape.bounds();
         return switch (StashMoveLogic.thinPanelSide(b.minX, b.minZ, b.maxX, b.maxZ)) {
             case EAST -> Direction.EAST;
             case WEST -> Direction.WEST;
@@ -2851,8 +2851,8 @@ public class StashMover extends Module {
      * </ol>
      */
     private BlockPos throwStandSpot(BlockPos trapdoor, SettlePurpose purpose) {
-        if (mc.world == null || mc.player == null) return null;
-        BlockPos water = trapdoor.down(1);
+        if (mc.level == null || mc.player == null) return null;
+        BlockPos water = trapdoor.below(1);
         // V6.7p24：不再只看「开启后的门板」——告示牌 / 活板门 FACING 在门关着时也能定侧。
         Direction front = throwFrontSide(trapdoor);
         if (front == null) {
@@ -2874,8 +2874,8 @@ public class StashMover extends Module {
     /** 正前方那一格（脚与门同层或上一层）；两格都站不了返回 null。 */
     private BlockPos frontStandSpot(BlockPos trapdoor, BlockPos water, Direction front) {
         for (int level = 0; level <= 1; level++) {
-            BlockPos p = new BlockPos(trapdoor.getX() + front.getOffsetX(),
-                trapdoor.getY() + level, trapdoor.getZ() + front.getOffsetZ());
+            BlockPos p = new BlockPos(trapdoor.getX() + front.getStepX(),
+                trapdoor.getY() + level, trapdoor.getZ() + front.getStepZ());
             if (p.equals(water)) continue;
             if (isStandable(p)) return p;
         }
@@ -2893,7 +2893,7 @@ public class StashMover extends Module {
      */
     private int stepToward(BlockPos target, int maxTicks) {
         if (target == null || mc.player == null) return 2;
-        Vec3d c = Vec3d.ofCenter(target);
+        Vec3 c = Vec3.atCenterOf(target);
         double dist = Math.hypot(c.x - mc.player.getX(), c.z - mc.player.getZ());
         if (dist <= STEP_ARRIVE_EPS) {
             releaseStepKeys();
@@ -2909,8 +2909,8 @@ public class StashMover extends Module {
         }
 
         float yaw = (float) (Math.toDegrees(Math.atan2(c.z - mc.player.getZ(), c.x - mc.player.getX())) - 90.0);
-        mc.player.setYaw(yaw);                       // 决定前进方向
-        turnTo(yaw, mc.player.getPitch());   // 真实转头（决定前进方向）
+        mc.player.setYRot(yaw);                       // 决定前进方向
+        turnTo(yaw, mc.player.getXRot());   // 真实转头（决定前进方向）
 
         boolean moved = !StashMoveLogic.isStalled(stepLastX, stepLastZ, mc.player.getX(), mc.player.getZ(), 0.02);
         stepLastX = mc.player.getX();
@@ -2920,9 +2920,9 @@ public class StashMover extends Module {
 
         // 被挡住：先跳（一格高的坎只能跳上去），跳几次还不行就交回去
         if (stepStuckTicks >= 8) {
-            mc.options.forwardKey.setPressed(false);
+            mc.options.keyUp.setDown(false);
             forwardHeld = false;
-            mc.options.jumpKey.setPressed(true);
+            mc.options.keyJump.setDown(true);
             if (stepStuckTicks >= 16) {
                 releaseStepKeys();
                 return 2;
@@ -2935,23 +2935,23 @@ public class StashMover extends Module {
         }
 
         boolean press;
-        if (mc.player.isTouchingWater()) {
+        if (mc.player.isInWater()) {
             press = true;                                 // 水里要一直按才游得动
-            mc.options.jumpKey.setPressed(true);          // 气泡柱会吸人，按跳帮一把
+            mc.options.keyJump.setDown(true);          // 气泡柱会吸人，按跳帮一把
         } else {
             stepPhase = (stepPhase + 1) % 4;
             press = stepPhase < 2;                         // 干地：按 2 tick 松 2 tick
-            if (mc.options != null) mc.options.jumpKey.setPressed(false);
+            if (mc.options != null) mc.options.keyJump.setDown(false);
         }
-        mc.options.forwardKey.setPressed(press);
+        mc.options.keyUp.setDown(press);
         forwardHeld = press;
         return 0;
     }
 
     private void releaseStepKeys() {
         if (mc.options != null) {
-            mc.options.forwardKey.setPressed(false);
-            mc.options.jumpKey.setPressed(false);
+            mc.options.keyUp.setDown(false);
+            mc.options.keyJump.setDown(false);
         }
         forwardHeld = false;
         stepTarget = null;
@@ -2988,9 +2988,9 @@ public class StashMover extends Module {
         }
 
         // 人还在柱子里 / 站在活板门上：门关着就先点开（否则关在 1×1 水柱里出不来）
-        BlockPos feet = mc.player.getBlockPos();
-        boolean onOrInColumn = feet.equals(trapdoorPos) || feet.equals(trapdoorPos.up())
-            || mc.player.isTouchingWater();
+        BlockPos feet = mc.player.blockPosition();
+        boolean onOrInColumn = feet.equals(trapdoorPos) || feet.equals(trapdoorPos.above())
+            || mc.player.isInWater();
         if (onOrInColumn && !trapdoorIsOpenOrAbsent(trapdoorPos)) {
             debugMsg("[站位] 人在柱子里/门边上，先打开活板门");
             realClick(trapdoorPos);
@@ -2998,7 +2998,7 @@ public class StashMover extends Module {
             return false;
         }
 
-        Vec3d t = Vec3d.ofCenter(trapdoorPos);
+        Vec3 t = Vec3.atCenterOf(trapdoorPos);
         double toTrapdoor = Math.hypot(t.x - mc.player.getX(), t.z - mc.player.getZ());
 
         // 远距离（补完珍珠回来那种）才用寻路；1~6 格一律短按走，避免 Baritone 顶墙卡脚
@@ -3012,7 +3012,7 @@ public class StashMover extends Module {
 
         int r = stepToward(spot, 200);
         if (r == 1) {
-            throwSafeSpot = mc.player.getBlockPos();
+            throwSafeSpot = mc.player.blockPosition();
             stepFailCount = 0;
             return true;
         }
@@ -3041,7 +3041,7 @@ public class StashMover extends Module {
      * @return 0=还在走 1=已到边缘可投 2=踩进水里要退 3=不在活板门正对面（需重站）
      */
     private int sneakStepToEdge(BlockPos trapdoor, int maxTicks) {
-        BlockPos water = trapdoor.down(1);
+        BlockPos water = trapdoor.below(1);
         // V6.7p24：和站位同源（告示牌 → FACING → 门板），不再只依赖开启后的碰撞箱
         Direction front = throwFrontSide(trapdoor);
         if (front == null) return 3;
@@ -3049,19 +3049,19 @@ public class StashMover extends Module {
         // 到格心的距离会变大，用距离会在半途把人退回。
         double dx = mc.player.getX() - (trapdoor.getX() + 0.5);
         double dz = mc.player.getZ() - (trapdoor.getZ() + 0.5);
-        if (!StashMoveLogic.onFrontSide(dx, dz, front.getOffsetX(), front.getOffsetZ(),
+        if (!StashMoveLogic.onFrontSide(dx, dz, front.getStepX(), front.getStepZ(),
                 FRONT_CELL_TOLERANCE)) {
             return 3;
         }
 
         sneakForThrow();
-        Vec3d aim = columnAimPoint(water);
+        Vec3 aim = columnAimPoint(water);
         float yaw = (float) (Math.toDegrees(Math.atan2(aim.z - mc.player.getZ(), aim.x - mc.player.getX())) - 90.0);
-        mc.player.setYaw(yaw);
+        mc.player.setYRot(yaw);
         turnTo(yaw, pitchTo(aim));
 
-        if (mc.player.isTouchingWater()) {
-            mc.options.forwardKey.setPressed(false);
+        if (mc.player.isInWater()) {
+            mc.options.keyUp.setDown(false);
             forwardHeld = false;
             return 2;
         }
@@ -3078,7 +3078,7 @@ public class StashMover extends Module {
         edgeCentered = StashMoveLogic.nextCenterStreak(edgeCentered, moved, hd, TRIO_CENTER_DIST);
 
         if (StashMoveLogic.readyToThrow(edgeCentered, TRIO_CENTER_STALL_TICKS)) {
-            mc.options.forwardKey.setPressed(false);
+            mc.options.keyUp.setDown(false);
             forwardHeld = false;
             edgeTicks = 0;
             edgeStuckTicks = 0;
@@ -3086,7 +3086,7 @@ public class StashMover extends Module {
             return 1;
         }
         if (edgeTicks > maxTicks) {
-            mc.options.forwardKey.setPressed(false);
+            mc.options.keyUp.setDown(false);
             forwardHeld = false;
             edgeTicks = 0;
             edgeStuckTicks = 0;
@@ -3097,7 +3097,7 @@ public class StashMover extends Module {
 
         edgePhase = (edgePhase + 1) % 4;
         boolean press = edgePhase < 2;
-        mc.options.forwardKey.setPressed(press);
+        mc.options.keyUp.setDown(press);
         forwardHeld = press;
         return 0;
     }
@@ -3126,7 +3126,7 @@ public class StashMover extends Module {
     /** 三人模式 1 号的投掷入口（具体步骤在 {@link #tickThrowSequence}）。 */
     private void trioThrow() {
         BlockPos stand = trioTrapdoor();
-        if (stand == null || stand.equals(BlockPos.ORIGIN)) {
+        if (stand == null || stand.equals(BlockPos.ZERO)) {
             enterStuck("请先设置" + zoneName() + "的活板门位置");
             return;
         }
@@ -3147,7 +3147,7 @@ public class StashMover extends Module {
      * 校验超时 60 → 80 tick；每 tick 都调用 {@link #faceColumn()} 把视角锁在气泡柱上（全程转头）。
      */
     private ThrowSeq tickThrowSequence(BlockPos stand, Runnable onSuccess) {
-        BlockPos water = stand.down(1);
+        BlockPos water = stand.below(1);
         // 每 tick 都把视角对准气泡柱（用户口径：全程都要转头）。
         // 唯独「正在投掷」这一 tick 不叠加：doThrowPearl 已经算好精确瞄准角，
         // 这里再转一次会把镜头拽回柱心，投掷就偏了。
@@ -3193,7 +3193,7 @@ public class StashMover extends Module {
                                 Direction frontNow = throwFrontSide(stand);
                                 enterStuck(frontNow == null
                                     ? "活板门已开，但告示牌/朝向/门板三处都读不出投掷侧，拒绝投掷"
-                                    : "投掷侧（" + frontNow.asString()
+                                    : "投掷侧（" + frontNow.getSerializedName()
                                         + " 侧）那一格站不了，已重走 " + FRONT_ALIGN_MAX_TRIES
                                         + " 次；本模块只在正对面投掷，不会退到侧面");
                                 return ThrowSeq.FAILED;
@@ -3234,7 +3234,7 @@ public class StashMover extends Module {
                         return ThrowSeq.RUNNING;
                     }
                     enterStuck("连续 " + (6 * (trapdoorRetreats + 1)) + " 次都打不开活板门"
-                        + "（眼睛距=" + String.format(Locale.ROOT, "%.2f", mc.player.getEyePos().distanceTo(Vec3d.ofCenter(stand)))
+                        + "（眼睛距=" + String.format(Locale.ROOT, "%.2f", mc.player.getEyePosition().distanceTo(Vec3.atCenterOf(stand)))
                         + "，请手动确认活板门是否填对、有没有被方块挡住）");
                     return ThrowSeq.FAILED;
                 }
@@ -3343,16 +3343,16 @@ public class StashMover extends Module {
 
     /** 活板门是否已打开（方块不是活板门时按“无需打开”处理，避免死循环点击）。 */
     private boolean trapdoorIsOpenOrAbsent(BlockPos pos) {
-        var state = mc.world.getBlockState(pos);
-        if (!(state.getBlock() instanceof TrapdoorBlock)) return true;
-        return state.get(TrapdoorBlock.OPEN);
+        var state = mc.level.getBlockState(pos);
+        if (!(state.getBlock() instanceof TrapDoorBlock)) return true;
+        return state.getValue(TrapDoorBlock.OPEN);
     }
 
     /** ④ 松开 shift、按 S 退离气泡柱（退到离柱心 ≥2.5 格），再回到投掷前的原位。 */
     private boolean backOffToSafe(BlockPos water) {
         // V6.7p12：后退全程保持蹲着（用户口径），只在退到安全距离后才由 finishTrioThrow 松开
         sneakForThrow();
-        Vec3d center = Vec3d.ofCenter(water);
+        Vec3 center = Vec3.atCenterOf(water);
         double dist = Math.hypot(center.x - mc.player.getX(), center.z - mc.player.getZ());
 
         if (StashMoveLogic.needMoreBackoff(dist, TRIO_RETREAT_DISTANCE)) {
@@ -3361,22 +3361,22 @@ public class StashMover extends Module {
                 backoffTicks = 20;
                 progress();
             }
-            if (mc.player.isTouchingWater()) {
+            if (mc.player.isInWater()) {
                 // 在水里按 S 退不快，改用跳+后退
-                mc.options.jumpKey.setPressed(true);
+                mc.options.keyJump.setDown(true);
             }
             return false;
         }
 
         // 退够了：立刻松键，避免继续退过头
         if (mc.options != null) {
-            mc.options.backKey.setPressed(false);
-            mc.options.jumpKey.setPressed(false);
+            mc.options.keyDown.setDown(false);
+            mc.options.keyJump.setDown(false);
         }
         backoffTicks = 0;
 
         if (throwSafeSpot == null) return true;
-        if (mc.player.getBlockPos().getSquaredDistance(throwSafeSpot) <= 4) return true;
+        if (mc.player.blockPosition().distSqr(throwSafeSpot) <= 4) return true;
         if (!PathManagers.get().isPathing()) {
             PathManagers.get().moveToPrecise(throwSafeSpot);
         }
@@ -3385,7 +3385,7 @@ public class StashMover extends Module {
 
     private void trioSend() {
         // V6.7p4：发私信前再确认一次本区珍珠还在（被踩掉就不要发，回去重投）
-        if (!ownPearlInColumn(trioTrapdoor().down(1))) {
+        if (!ownPearlInColumn(trioTrapdoor().below(1))) {
             info("发私信前发现本区珍珠不在了，回去重投");
             setThrowSub(0, "珍珠不在了");
             throwRetries = 0;
@@ -3404,7 +3404,7 @@ public class StashMover extends Module {
     }
 
     private void trioWaitTeleport() {
-        Vec3d now = mc.player.getEntityPos();
+        Vec3 now = mc.player.position();
         if (lastPos != null && StashMoveLogic.teleportJumped(lastPos.x, lastPos.z, now.x, now.z, 32)) {
             trioZone = trioZone == StashMoveLogic.Zone.SOURCE ? StashMoveLogic.Zone.STORE : StashMoveLogic.Zone.SOURCE;
                 blacklist.clear();
@@ -3454,8 +3454,8 @@ public class StashMover extends Module {
         if (mc.player == null) return Double.MAX_VALUE;
         BlockPos s = sourceTarget.get();
         BlockPos t = trioStoreChest.get();
-        boolean hasS = s != null && !s.equals(BlockPos.ORIGIN);
-        boolean hasT = t != null && !t.equals(BlockPos.ORIGIN);
+        boolean hasS = s != null && !s.equals(BlockPos.ZERO);
+        boolean hasT = t != null && !t.equals(BlockPos.ZERO);
         return StashMoveLogic.nearestZoneDistance(
             mc.player.getX(), mc.player.getZ(),
             hasS ? s.getX() + 0.5 : 0, hasS ? s.getZ() + 0.5 : 0, hasS,
@@ -3465,10 +3465,10 @@ public class StashMover extends Module {
     private StashMoveLogic.Zone initialZone() {
         BlockPos source = sourceTarget.get();
         BlockPos store = trioStoreChest.get();
-        double sx = source.equals(BlockPos.ORIGIN) ? Double.NaN : source.getX();
-        double sz = source.equals(BlockPos.ORIGIN) ? Double.NaN : source.getZ();
-        double tx = store.equals(BlockPos.ORIGIN) ? Double.NaN : store.getX();
-        double tz = store.equals(BlockPos.ORIGIN) ? Double.NaN : store.getZ();
+        double sx = source.equals(BlockPos.ZERO) ? Double.NaN : source.getX();
+        double sz = source.equals(BlockPos.ZERO) ? Double.NaN : source.getZ();
+        double tx = store.equals(BlockPos.ZERO) ? Double.NaN : store.getX();
+        double tz = store.equals(BlockPos.ZERO) ? Double.NaN : store.getZ();
         return StashMoveLogic.nearerZone(mc.player.getX(), mc.player.getZ(), sx, sz, tx, tz);
     }
 
@@ -3476,7 +3476,7 @@ public class StashMover extends Module {
 
     /** 到珍珠点/出发点「到了」没：水平 ≤2.5 且高度差 ≤2.5（与 GoalNear 目标同一套尺度）。 */
     private boolean nearPullPoint(BlockPos pos) {
-        BlockPos p = mc.player.getBlockPos();
+        BlockPos p = mc.player.blockPosition();
         return StashPearlLogic.nearPearlPoint(p.getX() - pos.getX(), p.getY() - pos.getY(),
             p.getZ() - pos.getZ(), PEARL_NEAR_HORIZONTAL, PEARL_NEAR_DY);
     }
@@ -3505,7 +3505,7 @@ public class StashMover extends Module {
             }
             if (nearPullPoint(pullPos)) {
                 // V6.7p13：点活板门加「确认 + 重试」——用门的状态是否翻转判断点中了没。
-                boolean isTrapdoor = mc.world.getBlockState(pullPos).getBlock() instanceof TrapdoorBlock;
+                boolean isTrapdoor = mc.level.getBlockState(pullPos).getBlock() instanceof TrapDoorBlock;
                 if (!pullClickSent) {
                     pullClickSent = true;
                     pullClickAttempts = 1;
@@ -3574,7 +3574,7 @@ public class StashMover extends Module {
 
     @EventHandler
     private void onReceiveMessage(ReceiveMessageEvent event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
 
         var pattern = PeerMessageLogic.compileRegex(customRegex.get() ? regex.get() : PeerMessageLogic.DEFAULT_REGEX);
         var parsed = PeerMessageLogic.parsePrivate(event.getMessage().getString(), pattern);
@@ -3614,7 +3614,7 @@ public class StashMover extends Module {
             sendPrivate(parsed.sender(), "没找到你的珍珠啊 " + parsed.sender());
             return;
         }
-        double dist = Math.sqrt(mc.player.getBlockPos().getSquaredDistance(point));
+        double dist = Math.sqrt(mc.player.blockPosition().distSqr(point));
         if (distanceCheck.get() && dist > maxDistance.get()) {
             sendPrivate(parsed.sender(), "我现在离你的珍珠太远，距离 " + (int) dist + " 格");
             return;
@@ -3628,7 +3628,7 @@ public class StashMover extends Module {
         pullPhase = 0;
         pullClickSent = false;
         pullClickAttempts = 0;
-        pullStartPos = mc.player.getBlockPos();
+        pullStartPos = mc.player.blockPosition();
         info("收到 " + parsed.sender() + " 的拉珍珠请求，出发");
     }
 
@@ -3671,19 +3671,19 @@ public class StashMover extends Module {
     }
 
     private BlockPos scanSignFor(String username) {
-        if (mc.world == null) return null;
+        if (mc.level == null) return null;
         String key = username.toLowerCase(Locale.ROOT);
-        BlockPos center = mc.player.getBlockPos();
+        BlockPos center = mc.player.blockPosition();
         int r = signRadius.get();
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {
                 for (int dy = -4; dy <= 4; dy++) {
-                    BlockPos p = center.add(dx, dy, dz);
-                    if (!(mc.world.getBlockEntity(p) instanceof SignBlockEntity sign)) continue;
-                    for (var line : sign.getFrontText().getMessages(false)) {
+                    BlockPos p = center.offset(dx, dy, dz);
+                    if (!(mc.level.getBlockEntity(p) instanceof SignBlockEntity sign)) continue;
+                    for (var line : sign.getText(SignTextSlot.FRONT).getMessages(false)) {
                         if (line.getString().toLowerCase(Locale.ROOT).contains(key)) {
                             info("找到包含名字的告示牌");
-                            return p.down();
+                            return p.below();
                         }
                     }
                 }
@@ -3694,9 +3694,9 @@ public class StashMover extends Module {
 
     @EventHandler
     private void onInteractBlock(InteractBlockEvent event) {
-        if (!isPullerRole() || !setupMode.get() || mc.world == null) return;
+        if (!isPullerRole() || !setupMode.get() || mc.level == null) return;
         BlockPos pos = event.result.getBlockPos();
-        if (!(mc.world.getBlockState(pos).getBlock() instanceof TrapdoorBlock)) return;
+        if (!(mc.level.getBlockState(pos).getBlock() instanceof TrapDoorBlock)) return;
         event.setCancelled(true);
         String name = "新珍珠点" + pearlPoints.get().size();
         pearlPoints.get().put(name, StashPearlLogic.formatPos(pos.getX(), pos.getY(), pos.getZ()));
@@ -3725,14 +3725,14 @@ public class StashMover extends Module {
         String body = chatCommand.get() == ChatCommand.SLASH_M
             ? "m " + target + " " + text
             : "tell " + target + " " + text;
-        mc.player.networkHandler.sendChatCommand(body);
+        mc.player.connection.sendCommand(body);
     }
 
     private void runSuicideCommand() {
         String cmd = suicideCommand.get().trim();
         if (cmd.isEmpty()) return;
-        if (cmd.startsWith("/")) mc.player.networkHandler.sendChatCommand(cmd.substring(1));
-        else mc.player.networkHandler.sendChatMessage(cmd);
+        if (cmd.startsWith("/")) mc.player.connection.sendCommand(cmd.substring(1));
+        else mc.player.connection.sendChat(cmd);
     }
 
     /**
@@ -3742,7 +3742,7 @@ public class StashMover extends Module {
      * 先让这一 tick 的移动包带上目标朝向，回调里再发交互包（顺序：移动包带朝向 → 交互包），
      * 并且第一人称真的会把头转过去（miku 的 RotationManager 只改第三人称身体，6.7p5 已确认）。
      */
-    private void doThrowPearl(int hotbarSlot, Vec3d aim) {
+    private void doThrowPearl(int hotbarSlot, Vec3 aim) {
         closeScreen();
         mc.player.getInventory().setSelectedSlot(hotbarSlot);
 
@@ -3750,10 +3750,10 @@ public class StashMover extends Module {
         float[] yp;
         if (hd <= 0.5) {
             // 已经站在气泡柱正上方：pitch 90 垂直向下投
-            yp = new float[]{mc.player.getYaw(), 90f};
+            yp = new float[]{mc.player.getYRot(), 90f};
         } else {
             yp = FacingLogic.yawPitchTo(aim.x, aim.y, aim.z,
-                mc.player.getX(), mc.player.getEyePos().y, mc.player.getZ());
+                mc.player.getX(), mc.player.getEyePosition().y, mc.player.getZ());
         }
         // V6.7p10：真实转头（直接改玩家 yaw/pitch 并保持），
         // 等本 tick 的移动包把朝向带给服务端之后，再发投掷包（SendMovementPacketsEvent.Post）。
@@ -3761,7 +3761,7 @@ public class StashMover extends Module {
         // Meteor 的 Rotations.rotate 是静默转头（发完立刻恢复），看起来只有一帧闪动。
         turnTo(yp[0], yp[1]);
         afterMoveAction = () -> {
-            if (mc.player != null) mc.interactionManager.interactItem(mc.player, Hand.MAIN_HAND);
+            if (mc.player != null) mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
         };
         // 收尾（是否后退、是否松 Shift）由调用方决定：trio 要蹲着后退，双号投完直接站起走下一步
         cooldown = 3;
@@ -3773,9 +3773,9 @@ public class StashMover extends Module {
      * 取离玩家最近的一个；找不到返回 null。
      */
     private BlockPos pearlStandSpot(BlockPos trapdoorPos) {
-        if (mc.world == null || trapdoorPos == null) return null;
-        BlockPos playerPos = mc.player.getBlockPos();
-        BlockPos water = trapdoorPos.down(1);
+        if (mc.level == null || trapdoorPos == null) return null;
+        BlockPos playerPos = mc.player.blockPosition();
+        BlockPos water = trapdoorPos.below(1);
         // V6.7p6：由近到远逐圈扫（半径 1→4），找到最近一圈就停；Y 范围放到 -2..3，
         // 岸在水柱上一层/下一层都能找到（原来只扫 ±2 格、Y±1，珍珠房稍宽一点就一律判“没有实心格”）
         for (int r = 1; r <= 4; r++) {
@@ -3785,10 +3785,10 @@ public class StashMover extends Module {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;   // 只扫本圈
                     for (int dy = -2; dy <= 3; dy++) {
-                        BlockPos p = trapdoorPos.add(dx, dy, dz);
+                        BlockPos p = trapdoorPos.offset(dx, dy, dz);
                         if (p.equals(trapdoorPos) || p.equals(water)) continue;
                         if (!isStandable(p)) continue;
-                        double d = p.getSquaredDistance(playerPos);
+                        double d = p.distSqr(playerPos);
                         if (d < bestD) {
                             bestD = d;
                             best = p;
@@ -3812,46 +3812,46 @@ public class StashMover extends Module {
      * 「找不到可站的实心格」。现在改成：本格与头顶无碰撞即可通行，脚下方块有碰撞且不含流体。
      */
     private boolean isStandable(BlockPos p) {
-        if (!mc.world.getBlockState(p).getCollisionShape(mc.world, p).isEmpty()) return false;
-        if (!mc.world.getBlockState(p.up()).getCollisionShape(mc.world, p.up()).isEmpty()) return false;
-        var below = mc.world.getBlockState(p.down());
-        if (below.getCollisionShape(mc.world, p.down()).isEmpty()) return false;
+        if (!mc.level.getBlockState(p).getCollisionShape(mc.level, p).isEmpty()) return false;
+        if (!mc.level.getBlockState(p.above()).getCollisionShape(mc.level, p.above()).isEmpty()) return false;
+        var below = mc.level.getBlockState(p.below());
+        if (below.getCollisionShape(mc.level, p.below()).isEmpty()) return false;
         return below.getFluidState().isEmpty();
     }
 
     /** 找不到安全格时把玩家/活板门周边的实际方块打到调试输出，方便定位结构问题。 */
     private void dumpStandSpotFailure(BlockPos trapdoorPos) {
-        if (!debug.get() || mc.world == null || mc.player == null) return;
-        BlockPos feet = mc.player.getBlockPos();
-        BlockPos water = trapdoorPos.down(1);
+        if (!debug.get() || mc.level == null || mc.player == null) return;
+        BlockPos feet = mc.player.blockPosition();
+        BlockPos water = trapdoorPos.below(1);
         Direction lid = openLidSide(trapdoorPos);
         Direction sign = signThrowSide(trapdoorPos);
         Direction front = throwFrontSide(trapdoorPos);
         debugMsg("[脱困] 找不到可站格｜自身=" + blockName(feet)
-            + " 脚下=" + blockName(feet.down())
-            + " 水中=" + mc.player.isTouchingWater()
+            + " 脚下=" + blockName(feet.below())
+            + " 水中=" + mc.player.isInWater()
             + "｜活板门打开=" + trapdoorIsOpenOrAbsent(trapdoorPos)
-            + " 门板=" + (lid == null ? "不可判" : lid.asString())
-            + " 告示牌=" + (sign == null ? "1~3 格内没找到" : sign.asString())
-            + " 投掷侧=" + (front == null ? "不可判" : front.asString())
+            + " 门板=" + (lid == null ? "不可判" : lid.getSerializedName())
+            + " 告示牌=" + (sign == null ? "1~3 格内没找到" : sign.getSerializedName())
+            + " 投掷侧=" + (front == null ? "不可判" : front.getSerializedName())
             + " 水格=" + blockName(water));
     }
 
     private String blockName(BlockPos p) {
-        if (mc.world == null) return "?";
-        return net.minecraft.registry.Registries.BLOCK.getId(mc.world.getBlockState(p).getBlock()).getPath();
+        if (mc.level == null) return "?";
+        return net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(p).getBlock()).getPath();
     }
 
     /** 投掷时按住潜行键（防止走位滑进气泡柱）。 */
     private void sneakForThrow() {
         if (mc.options == null) return;
-        mc.options.sneakKey.setPressed(true);
+        mc.options.keyShift.setDown(true);
         sneakHeld = true;
     }
 
     private void releaseSneak() {
         if (sneakHeld && mc.options != null) {
-            mc.options.sneakKey.setPressed(false);
+            mc.options.keyShift.setDown(false);
         }
         sneakHeld = false;
     }
@@ -3867,12 +3867,12 @@ public class StashMover extends Module {
      * 结果是回程票没投进去、模块却以为成功，下一趟拉不回来。
      */
     private boolean ownPearlInColumn(BlockPos water) {
-        if (mc.world == null || mc.player == null) return false;
-        for (Entity e : mc.world.getEntities()) {
-            if (!(e instanceof EnderPearlEntity pearl)) continue;
+        if (mc.level == null || mc.player == null) return false;
+        for (Entity e : mc.level.entitiesForRendering()) {
+            if (!(e instanceof ThrownEnderpearl pearl)) continue;
             Entity owner = pearl.getOwner();
             boolean mine = owner == mc.player
-                || (owner != null && owner.getUuid().equals(mc.player.getUuid()));
+                || (owner != null && owner.getUUID().equals(mc.player.getUUID()));
             if (!mine) continue;
             if (StashMoveLogic.pearlInColumn(pearl.getX(), pearl.getZ(),
                     water.getX(), water.getZ(), PEARL_IN_COLUMN_XZ)
@@ -3887,16 +3887,16 @@ public class StashMover extends Module {
     /**
      * 当前打开的容器（V6.7p3：同时支持箱子类与<b>放下的潜影盒</b>）。
      *
-     * <p>放下的潜影盒界面是 {@link ShulkerBoxScreenHandler}，旧实现只认
-     * {@link GenericContainerScreenHandler}，导致「珍珠箱 = 潜影盒」时永远判定“没打开箱子”、
+     * <p>放下的潜影盒界面是 {@link ShulkerBoxMenu}，旧实现只认
+     * {@link ChestMenu}，导致「珍珠箱 = 潜影盒」时永远判定“没打开箱子”、
      * 补货逻辑一直不执行。这里统一返回容器 handler，拿不到返回 null。
      */
-    private ScreenHandler containerHandler() {
+    private AbstractContainerMenu containerHandler() {
         if (mc.player == null) return null;
-        ScreenHandler handler = mc.player.currentScreenHandler;
-        if (handler == null || handler == mc.player.playerScreenHandler) return null;
-        if (StashMoveLogic.isSupportedContainer(handler instanceof GenericContainerScreenHandler,
-            handler instanceof ShulkerBoxScreenHandler)) return handler;
+        AbstractContainerMenu handler = mc.player.containerMenu;
+        if (handler == null || handler == mc.player.inventoryMenu) return null;
+        if (StashMoveLogic.isSupportedContainer(handler instanceof ChestMenu,
+            handler instanceof ShulkerBoxMenu)) return handler;
         return null;
     }
 
@@ -3905,48 +3905,48 @@ public class StashMover extends Module {
     }
 
     private void closeScreen() {
-        if (mc.player != null && mc.currentScreen != null) mc.player.closeHandledScreen();
+        if (mc.player != null && mc.gui.screen() != null) mc.player.closeContainer();
     }
 
     /** 光标上是否没有东西（V6.7p12：关界面前必须为空）。 */
     private boolean cursorEmpty() {
         if (mc.player == null) return true;
-        ScreenHandler h = mc.player.currentScreenHandler;
-        return h == null || h.getCursorStack().isEmpty();
+        AbstractContainerMenu h = mc.player.containerMenu;
+        return h == null || h.getCarried().isEmpty();
     }
 
     /** 光标上拿着几颗珍珠。 */
     private int cursorPearlCount() {
         if (mc.player == null) return 0;
-        ScreenHandler h = mc.player.currentScreenHandler;
+        AbstractContainerMenu h = mc.player.containerMenu;
         if (h == null) return 0;
-        ItemStack st = h.getCursorStack();
-        return st.isOf(Items.ENDER_PEARL) ? st.getCount() : 0;
+        ItemStack st = h.getCarried();
+        return st.is(Items.ENDER_PEARL) ? st.getCount() : 0;
     }
 
     /** 余量该放回哪个槽位：优先原槽，其次任意空容器槽，都没有返回 -1。 */
     private int putbackSlot() {
-        ScreenHandler h = containerHandler();
+        AbstractContainerMenu h = containerHandler();
         if (h == null) return -1;
         if (restockChestSlot >= 0 && restockChestSlot < h.slots.size()) {
-            ItemStack st = h.getSlot(restockChestSlot).getStack();
-            if (st.isEmpty() || st.isOf(Items.ENDER_PEARL)) return restockChestSlot;
+            ItemStack st = h.getSlot(restockChestSlot).getItem();
+            if (st.isEmpty() || st.is(Items.ENDER_PEARL)) return restockChestSlot;
         }
         int size = h.slots.size();
         for (int i = 0; i < size - 36; i++) {
-            if (h.getSlot(i).getStack().isEmpty()) return i;
+            if (h.getSlot(i).getItem().isEmpty()) return i;
         }
         return -1;
     }
 
-    private void clickSlot(int slot, SlotActionType type) {
+    private void clickSlot(int slot, ContainerInput type) {
         clickSlot(slot, type, 0);
     }
 
-    private void clickSlot(int slot, SlotActionType type, int button) {
-        ScreenHandler handler = containerHandler();
+    private void clickSlot(int slot, ContainerInput type, int button) {
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return;
-        mc.interactionManager.clickSlot(handler.syncId, slot, button, type, mc.player);
+        mc.gameMode.handleContainerInput(handler.containerId, slot, button, type, mc.player);
     }
 
     /**
@@ -3956,19 +3956,19 @@ public class StashMover extends Module {
      * 否则「只拿潜影盒」会把普通物资箱当空箱拉黑（见 {@link StashMoveLogic#takeOutcome}）。
      */
     private StashMoveLogic.TakeOutcome takeFromContainer() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return StashMoveLogic.TakeOutcome.EMPTY;
         // V6.7p34：1 tick 瞬时存取 —— 容器里所有符合条件的物品一次点完
         if (oneTickTransfer.get()) return takeAllInOneTick();
         int size = handler.slots.size();
         boolean anyItem = false;
         for (int i = 0; i < size - 36; i++) {
-            ItemStack stack = handler.getSlot(i).getStack();
+            ItemStack stack = handler.getSlot(i).getItem();
             if (stack.isEmpty()) continue;
             anyItem = true;
-            if (onlyShulker.get() && !StashPearlLogic.isShulkerBoxId(Registries.ITEM.getId(stack.getItem()).toString())) continue;
-            clickSlot(i, SlotActionType.QUICK_MOVE);
-            if (StashPearlLogic.isShulkerBoxId(Registries.ITEM.getId(stack.getItem()).toString())) {
+            if (onlyShulker.get() && !StashPearlLogic.isShulkerBoxId(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString())) continue;
+            clickSlot(i, ContainerInput.QUICK_MOVE);
+            if (StashPearlLogic.isShulkerBoxId(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString())) {
                 StashStats.get().addShulkers(stack.getCount());
             }
             cooldown = Math.max(1, clickDelay.get());
@@ -3981,7 +3981,7 @@ public class StashMover extends Module {
     private boolean inventoryFull() {
         var inv = mc.player.getInventory();
         for (int i = 0; i < 36; i++) {
-            if (inv.getStack(i).isEmpty()) return false;
+            if (inv.getItem(i).isEmpty()) return false;
         }
         return true;
     }
@@ -3989,27 +3989,27 @@ public class StashMover extends Module {
     private boolean inventoryEmpty() {
         var inv = mc.player.getInventory();
         for (int i = 0; i < 36; i++) {
-            if (!inv.getStack(i).isEmpty()) return false;
+            if (!inv.getItem(i).isEmpty()) return false;
         }
         return true;
     }
 
     private boolean containerIsFull() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return false;
         int size = handler.slots.size();
         for (int i = 0; i < size - 36; i++) {
-            if (handler.getSlot(i).getStack().isEmpty()) return false;
+            if (handler.getSlot(i).getItem().isEmpty()) return false;
         }
         return true;
     }
 
     private boolean containerEmpty() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return false;
         int size = handler.slots.size();
         for (int i = 0; i < size - 36; i++) {
-            if (!handler.getSlot(i).getStack().isEmpty()) return false;
+            if (!handler.getSlot(i).getItem().isEmpty()) return false;
         }
         return true;
     }
@@ -4025,21 +4025,21 @@ public class StashMover extends Module {
      * 冷却压到 2 tick 等确认，而不是沿用 clickDelay。
      */
     private StashMoveLogic.TakeOutcome takeAllInOneTick() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return StashMoveLogic.TakeOutcome.EMPTY;
         int size = handler.slots.size();
         boolean anyItem = false;
         boolean clicked = false;
         for (int i = 0; i < size - 36; i++) {
-            ItemStack stack = handler.getSlot(i).getStack();
+            ItemStack stack = handler.getSlot(i).getItem();
             if (stack.isEmpty()) continue;
             anyItem = true;
-            String itemId = Registries.ITEM.getId(stack.getItem()).toString();
+            String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
             if (onlyShulker.get() && !StashPearlLogic.isShulkerBoxId(itemId)) continue;
             if (StashPearlLogic.isShulkerBoxId(itemId)) {
                 StashStats.get().addShulkers(stack.getCount());
             }
-            clickSlot(i, SlotActionType.QUICK_MOVE);
+            clickSlot(i, ContainerInput.QUICK_MOVE);
             clicked = true;
         }
         if (clicked) {
@@ -4054,13 +4054,13 @@ public class StashMover extends Module {
      * @return 是否点过（点了就视为本趟卸了东西，统计口径与单格版一致）
      */
     private boolean unloadAllInOneTick() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return false;
         int size = handler.slots.size();
         boolean clicked = false;
         for (int i = size - 36; i < size; i++) {
-            if (!isUnloadCandidate(handler.getSlot(i).getStack())) continue;
-            clickSlot(i, SlotActionType.QUICK_MOVE);
+            if (!isUnloadCandidate(handler.getSlot(i).getItem())) continue;
+            clickSlot(i, ContainerInput.QUICK_MOVE);
             clicked = true;
         }
         if (clicked) {
@@ -4073,15 +4073,15 @@ public class StashMover extends Module {
 
     /** 1 tick 全量存末影箱：背包里所有可存物品（珍珠除外）一次点完。@return 是否点过。 */
     private boolean depositAllInOneTick() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return false;
         int size = handler.slots.size();
         boolean clicked = false;
         for (int i = size - 36; i < size; i++) {
-            ItemStack stack = handler.getSlot(i).getStack();
+            ItemStack stack = handler.getSlot(i).getItem();
             if (stack.isEmpty()) continue;
-            if (!StashMoveLogic.shouldStoreInEnder(Registries.ITEM.getId(stack.getItem()).toString())) continue;
-            clickSlot(i, SlotActionType.QUICK_MOVE);
+            if (!StashMoveLogic.shouldStoreInEnder(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString())) continue;
+            clickSlot(i, ContainerInput.QUICK_MOVE);
             clicked = true;
         }
         return clicked;
@@ -4089,24 +4089,24 @@ public class StashMover extends Module {
 
     /** 1 tick 全量取末影箱：容器里所有非空槽位一次点完。@return 是否点过。 */
     private boolean withdrawAllInOneTick() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return false;
         int size = handler.slots.size();
         boolean clicked = false;
         for (int i = 0; i < size - 36; i++) {
-            if (handler.getSlot(i).getStack().isEmpty()) continue;
-            clickSlot(i, SlotActionType.QUICK_MOVE);
+            if (handler.getSlot(i).getItem().isEmpty()) continue;
+            clickSlot(i, ContainerInput.QUICK_MOVE);
             clicked = true;
         }
         return clicked;
     }
 
     private int findInventorySlotToUnload() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return -1;
         int size = handler.slots.size();
         for (int i = size - 36; i < size; i++) {
-            ItemStack stack = handler.getSlot(i).getStack();
+            ItemStack stack = handler.getSlot(i).getItem();
             if (isUnloadCandidate(stack)) return i;
         }
         return -1;
@@ -4118,7 +4118,7 @@ public class StashMover extends Module {
      * 末影箱功能当前是否可用：开关打开 + 本号是搬运端（拉珍珠端不参与）+ 世界/玩家就绪。
      */
     private boolean enderUsable() {
-        return enderEnabled.get() && isMoverRole() && mc.player != null && mc.world != null;
+        return enderEnabled.get() && isMoverRole() && mc.player != null && mc.level != null;
     }
 
     /**
@@ -4139,11 +4139,11 @@ public class StashMover extends Module {
      */
     private boolean enderChestOpen() {
         if (enderTarget == null || !containerOpen()) return false;
-        ScreenHandler handler = containerHandler();
-        if (!StashMoveLogic.isEnderScreenShape(handler instanceof GenericContainerScreenHandler,
+        AbstractContainerMenu handler = containerHandler();
+        if (!StashMoveLogic.isEnderScreenShape(handler instanceof ChestMenu,
             handler == null ? 0 : handler.slots.size())) return false;
         if (!enderTarget.equals(openChest)) return false;  // 我们点的就是这一台
-        return mc.world != null && mc.world.getBlockState(enderTarget).getBlock() == Blocks.ENDER_CHEST;
+        return mc.level != null && mc.level.getBlockState(enderTarget).getBlock() == Blocks.ENDER_CHEST;
     }
 
     /**
@@ -4161,7 +4161,7 @@ public class StashMover extends Module {
             : (mode.get() == Mode.TRIO ? trioEnderLootChest.get() : enderLootChest.get());
         boolean coordSet = coord != null && StashMoveLogic.isCoordSet(coord.getX(), coord.getY(), coord.getZ());
         if (coordSet) {
-            boolean ok = mc.world != null && mc.world.getBlockState(coord).getBlock() == Blocks.ENDER_CHEST;
+            boolean ok = mc.level != null && mc.level.getBlockState(coord).getBlock() == Blocks.ENDER_CHEST;
             if (ok) {
                 debugMsg("[末影箱] 使用分区坐标指定的那台（" + (storageZone ? "存储区" : "取货区") + "）");
                 return coord;
@@ -4183,22 +4183,22 @@ public class StashMover extends Module {
     private BlockPos findNearbyEnderChest() {
         if (!enderUsable()) return null;
         if (enderChestCache != null) {
-            if (mc.world.getBlockState(enderChestCache).getBlock() == Blocks.ENDER_CHEST) return enderChestCache;
+            if (mc.level.getBlockState(enderChestCache).getBlock() == Blocks.ENDER_CHEST) return enderChestCache;
             enderChestCache = null;   // 被拆了/换地方了
         }
         if (tick - enderChestCacheTick < ENDER_SCAN_TTL) return null;
 
         enderChestCacheTick = tick;
         int r = Math.max(2, enderSearchRadius.get());
-        BlockPos base = mc.player.getBlockPos();
+        BlockPos base = mc.player.blockPosition();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (int dx = -r; dx <= r; dx++) {
             for (int dy = -r; dy <= r; dy++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    BlockPos p = base.add(dx, dy, dz);
-                    if (mc.world.getBlockState(p).getBlock() != Blocks.ENDER_CHEST) continue;
-                    double d = base.getSquaredDistance(p);
+                    BlockPos p = base.offset(dx, dy, dz);
+                    if (mc.level.getBlockState(p).getBlock() != Blocks.ENDER_CHEST) continue;
+                    double d = base.distSqr(p);
                     if (d < bestD) {
                         bestD = d;
                         best = p;
@@ -4225,9 +4225,9 @@ public class StashMover extends Module {
         if (mc.player == null) return false;
         var inv = mc.player.getInventory();
         for (int i = 0; i < 36; i++) {
-            ItemStack stack = inv.getStack(i);
+            ItemStack stack = inv.getItem(i);
             if (stack.isEmpty()) continue;
-            if (StashMoveLogic.shouldStoreInEnder(Registries.ITEM.getId(stack.getItem()).toString())) return true;
+            if (StashMoveLogic.shouldStoreInEnder(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString())) return true;
         }
         return false;
     }
@@ -4280,7 +4280,7 @@ public class StashMover extends Module {
 
     /** 存末影箱的一 tick：返回 false = 结束（调用方切回原状态）。 */
     private boolean enderPutTick() {
-        if (enderTarget == null || mc.world.getBlockState(enderTarget).getBlock() != Blocks.ENDER_CHEST) {
+        if (enderTarget == null || mc.level.getBlockState(enderTarget).getBlock() != Blocks.ENDER_CHEST) {
             enderPutDone = true;
             return false;
         }
@@ -4356,7 +4356,7 @@ public class StashMover extends Module {
             enderPutDone = true;
             return false;
         }
-        clickSlot(slot, SlotActionType.QUICK_MOVE);
+        clickSlot(slot, ContainerInput.QUICK_MOVE);
         cooldown = Math.max(1, clickDelay.get());
         progress();
         return true;
@@ -4364,7 +4364,7 @@ public class StashMover extends Module {
 
     /** 取末影箱的一 tick：返回 false = 结束（调用方切回卸货）。 */
     private boolean enderTakeTick() {
-        if (enderTarget == null || mc.world.getBlockState(enderTarget).getBlock() != Blocks.ENDER_CHEST) {
+        if (enderTarget == null || mc.level.getBlockState(enderTarget).getBlock() != Blocks.ENDER_CHEST) {
             enderTakeDone = true;
             return false;
         }
@@ -4440,7 +4440,7 @@ public class StashMover extends Module {
             enderTakeDone = true;
             return false;
         }
-        clickSlot(slot, SlotActionType.QUICK_MOVE);
+        clickSlot(slot, ContainerInput.QUICK_MOVE);
         cooldown = Math.max(1, clickDelay.get());
         progress();
         return true;
@@ -4448,35 +4448,35 @@ public class StashMover extends Module {
 
     /** 末影箱界面里，背包部分第一个「可存入」的槽位（珍珠除外）。 */
     private int findEnderDepositSlot() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return -1;
         int size = handler.slots.size();
         for (int i = size - 36; i < size; i++) {
-            ItemStack stack = handler.getSlot(i).getStack();
+            ItemStack stack = handler.getSlot(i).getItem();
             if (stack.isEmpty()) continue;
-            if (StashMoveLogic.shouldStoreInEnder(Registries.ITEM.getId(stack.getItem()).toString())) return i;
+            if (StashMoveLogic.shouldStoreInEnder(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString())) return i;
         }
         return -1;
     }
 
     /** 末影箱容器部分第一个非空槽位（逐格 QUICK_MOVE 到背包）。 */
     private int findEnderWithdrawSlot() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return -1;
         int size = handler.slots.size();
         for (int i = 0; i < size - 36; i++) {
-            if (!handler.getSlot(i).getStack().isEmpty()) return i;
+            if (!handler.getSlot(i).getItem().isEmpty()) return i;
         }
         return -1;
     }
 
     /** 末影箱界面里还有没有空的背包槽位。 */
     private int findEmptyPlayerSlotInHandler() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return -1;
         int size = handler.slots.size();
         for (int i = size - 36; i < size; i++) {
-            if (handler.getSlot(i).getStack().isEmpty()) return i;
+            if (handler.getSlot(i).getItem().isEmpty()) return i;
         }
         return -1;
     }
@@ -4495,7 +4495,7 @@ public class StashMover extends Module {
     private boolean hasItemsToUnload() {
         var inv = mc.player.getInventory();
         for (int i = 0; i < 36; i++) {
-            if (isUnloadCandidate(inv.getStack(i))) return true;
+            if (isUnloadCandidate(inv.getItem(i))) return true;
         }
         return false;
     }
@@ -4507,36 +4507,36 @@ public class StashMover extends Module {
      */
     private boolean isUnloadCandidate(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
-        String id = Registries.ITEM.getId(stack.getItem()).toString();
+        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         return StashMoveLogic.shouldUnload(id, onlyShulker.get());
     }
 
     private int findPearlSlotInContainer() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return -1;
         int size = handler.slots.size();
         for (int i = 0; i < size - 36; i++) {
-            if (handler.getSlot(i).getStack().isOf(Items.ENDER_PEARL)) return i;
+            if (handler.getSlot(i).getItem().is(Items.ENDER_PEARL)) return i;
         }
         return -1;
     }
 
     private int findPearlSlotInInventory() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return -1;
         int size = handler.slots.size();
         for (int i = size - 36; i < size; i++) {
-            if (handler.getSlot(i).getStack().isOf(Items.ENDER_PEARL)) return i;
+            if (handler.getSlot(i).getItem().is(Items.ENDER_PEARL)) return i;
         }
         return -1;
     }
 
     private int findEmptyInventorySlot() {
-        ScreenHandler handler = containerHandler();
+        AbstractContainerMenu handler = containerHandler();
         if (handler == null) return -1;
         int size = handler.slots.size();
         for (int i = size - 36; i < size; i++) {
-            if (handler.getSlot(i).getStack().isEmpty()) return i;
+            if (handler.getSlot(i).getItem().isEmpty()) return i;
         }
         return -1;
     }
@@ -4545,8 +4545,8 @@ public class StashMover extends Module {
         var inv = mc.player.getInventory();
         int n = 0;
         for (int i = 0; i < 36; i++) {
-            ItemStack s = inv.getStack(i);
-            if (s.isOf(Items.ENDER_PEARL)) n += s.getCount();
+            ItemStack s = inv.getItem(i);
+            if (s.is(Items.ENDER_PEARL)) n += s.getCount();
         }
         return n;
     }
@@ -4555,7 +4555,7 @@ public class StashMover extends Module {
     private int findPearlIndexMainInventory() {
         var inv = mc.player.getInventory();
         for (int i = 9; i < 36; i++) {
-            if (inv.getStack(i).isOf(Items.ENDER_PEARL)) return i;
+            if (inv.getItem(i).is(Items.ENDER_PEARL)) return i;
         }
         return -1;
     }
@@ -4563,7 +4563,7 @@ public class StashMover extends Module {
     private int findPearlHotbarSlot() {
         var inv = mc.player.getInventory();
         for (int i = 0; i < 9; i++) {
-            if (inv.getStack(i).isOf(Items.ENDER_PEARL)) return i;
+            if (inv.getItem(i).is(Items.ENDER_PEARL)) return i;
         }
         return -1;
     }
@@ -4585,7 +4585,7 @@ public class StashMover extends Module {
      * 同一目标不重复下发，Baritone 自己停下来时隔 20 tick 再试。
      */
     private void walkToPrecise(BlockPos pos) {
-        if (pos == null || pos.equals(BlockPos.ORIGIN)) return;
+        if (pos == null || pos.equals(BlockPos.ZERO)) return;
         if (!pos.equals(pathTarget)) {
             pathTarget = pos;
             // 这条路径不走 pathTo，目标类型标记清零：之后同坐标若要改用 pathTo 的两种目标，
@@ -4638,7 +4638,7 @@ public class StashMover extends Module {
     }
 
     private void pathTo(BlockPos pos, PathGoal goal) {
-        if (pos == null || pos.equals(BlockPos.ORIGIN)) return;
+        if (pos == null || pos.equals(BlockPos.ZERO)) return;
         // 目标坐标或「目标类型」任一变化都要重新下发：否则同坐标换目标类型时，
         // 会被下面这条「同目标不重复下发」的守卫直接吞掉。
         if (!pos.equals(pathTarget) || pathGoal != goal) {
@@ -4677,13 +4677,13 @@ public class StashMover extends Module {
      */
     private double eyeBoxDistance(BlockPos pos) {
         if (mc.player == null || pos == null) return Double.MAX_VALUE;
-        return Math.sqrt(new Box(pos).squaredMagnitude(mc.player.getEyePos()));
+        return Math.sqrt(new AABB(pos).distanceToSqr(mc.player.getEyePosition()));
     }
 
     /** 站在某个落脚点上时，眼睛到箱子包围盒的距离（选落脚点时预筛用）。 */
     private double eyeBoxDistanceAt(BlockPos feet, BlockPos chest) {
-        Vec3d eye = new Vec3d(feet.getX() + 0.5, feet.getY() + 1.62, feet.getZ() + 0.5);
-        return Math.sqrt(new Box(chest).squaredMagnitude(eye));
+        Vec3 eye = new Vec3(feet.getX() + 0.5, feet.getY() + 1.62, feet.getZ() + 0.5);
+        return Math.sqrt(new AABB(chest).distanceToSqr(eye));
     }
 
     /** 现在这一格够不够得着（眼睛到包围盒 ≤ 「开箱距离」设置）。 */
@@ -4704,10 +4704,10 @@ public class StashMover extends Module {
      * @return 落脚点；四周 3 格内没有可站格时返回 null
      */
     private ChestApproach findChestApproach(BlockPos chest) {
-        if (mc.world == null || mc.player == null || chest == null) return null;
+        if (mc.level == null || mc.player == null || chest == null) return null;
         // 区块没加载 / 箱子已经没了：方块会长成空气，这时候算出来的「没落脚点」是假结论，
         // 绝不能记进 chestNoSpot（否则远距离补珍珠时会把珍珠箱永久拉黑）。
-        var chestState = mc.world.getBlockState(chest);
+        var chestState = mc.level.getBlockState(chest);
         if (!(chestState.getBlock() instanceof ChestBlock)
             && !(chestState.getBlock() instanceof ShulkerBoxBlock)
             && !(chestState.getBlock() instanceof EnderChestBlock)) {
@@ -4722,9 +4722,9 @@ public class StashMover extends Module {
         // V6.7p33：候选 = 箱子周围 1~3 圈 + **玩家当前格的水平邻格**。
         // 邻格解决「就差旁边挪一格」：站得稍远时，隔壁那格在箱子 3 圈之外，根本不在旧候选里。
         List<int[]> cands = new ArrayList<>(StashChestSpotLogic.candidates(chest.getX(), chest.getY(), chest.getZ()));
-        BlockPos feet = mc.player.getBlockPos();
+        BlockPos feet = mc.player.blockPosition();
         for (Direction h : HORIZONTAL_DIRS) {
-            BlockPos n = feet.offset(h);
+            BlockPos n = feet.relative(h);
             cands.add(new int[]{n.getX(), n.getY(), n.getZ()});
         }
 
@@ -4739,7 +4739,7 @@ public class StashMover extends Module {
                 // 站过去必须真的够得着（V6.7p28：按包围盒距离预筛，否则选到 2 格外的点会永远开不了）
                 if (eyeBoxDistanceAt(p, chest) > openReach.get()) continue;
                 boolean los = hasLineOfSight(p, chest, partner);
-                double distSq = mc.player.getBlockPos().getSquaredDistance(p);
+                double distSq = mc.player.blockPosition().distSqr(p);
                 double score = StashChestSpotLogic.score(los, distSq, c[1] - chest.getY());
                 if (score < bestScore) {
                     bestScore = score;
@@ -4786,7 +4786,7 @@ public class StashMover extends Module {
     /** 把一个落脚点记为「失败」（V6.7p33 换格机制）：缓存作废，下次选择跳过它。 */
     private void markSpotFailed(BlockPos chest, BlockPos spot, String reason) {
         if (chest == null || spot == null) return;
-        chestFailedSpots.computeIfAbsent(chest, k -> new LinkedHashMap<>()).put(spot.toImmutable(), tick);
+        chestFailedSpots.computeIfAbsent(chest, k -> new LinkedHashMap<>()).put(spot.immutable(), tick);
         chestApproachCache.remove(chest);
         debugMsg("[接近] 落脚点不行（" + reason + "）→ 换下一格");
     }
@@ -4828,11 +4828,11 @@ public class StashMover extends Module {
      * 但那种情况依然可以用发包开，所以不是硬门槛。
      */
     private boolean hasLineOfSight(BlockPos spot, BlockPos chest, BlockPos partner) {
-        if (mc.world == null || mc.player == null) return false;
-        Vec3d from = new Vec3d(spot.getX() + 0.5, spot.getY() + 1.62, spot.getZ() + 0.5);
-        Vec3d to = Vec3d.ofCenter(chest);
-        BlockHitResult hit = mc.world.raycast(new RaycastContext(from, to,
-            RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, mc.player));
+        if (mc.level == null || mc.player == null) return false;
+        Vec3 from = new Vec3(spot.getX() + 0.5, spot.getY() + 1.62, spot.getZ() + 0.5);
+        Vec3 to = Vec3.atCenterOf(chest);
+        BlockHitResult hit = mc.level.clip(new ClipContext(from, to,
+            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
         if (hit == null) return false;
         BlockPos hp = hit.getBlockPos();
         return hp.equals(chest) || (partner != null && hp.equals(partner));
@@ -4857,7 +4857,7 @@ public class StashMover extends Module {
      * 活板门本来就要贴到它旁边/上面点，GoalNear(方块,1) 的语义正好合适。
      */
     private boolean approachForOpen(BlockPos pos) {
-        if (pos == null || pos.equals(BlockPos.ORIGIN) || mc.player == null) return false;
+        if (pos == null || pos.equals(BlockPos.ZERO) || mc.player == null) return false;
         if (canOpenFromHere(pos)) {
             stopApproachPath();
             return true;
@@ -4885,7 +4885,7 @@ public class StashMover extends Module {
      *                 false = 打不开只提示、由调用方降级（末影箱：跳过本趟中转）
      */
     private boolean goOpenChest(BlockPos chest, boolean critical) {
-        if (chest == null || chest.equals(BlockPos.ORIGIN)) return false;
+        if (chest == null || chest.equals(BlockPos.ZERO)) return false;
         Approach a = approachChest(chest);
         if (a == Approach.IN_RANGE) {
             openChestAt(chest);
@@ -4920,7 +4920,7 @@ public class StashMover extends Module {
      * GoalNear(箱子,1) 又把「站在箱子正上方」算成到达 —— 两条都不符合用户口径，这里一并去掉。
      */
     private Approach approachChest(BlockPos pos) {
-        if (pos == null || pos.equals(BlockPos.ORIGIN) || mc.player == null) return Approach.NO_SPOT;
+        if (pos == null || pos.equals(BlockPos.ZERO) || mc.player == null) return Approach.NO_SPOT;
 
         // 点了几次没开（V6.7p28 触发，V6.7p33 改动作）：不再「往最近的格挤」——那大概率还是同一格，
         // Baritone 认为目标格已到达就会原地不动（实机死锁：站在缓存格里贴边，眼距差半格开不了）。
@@ -4947,7 +4947,7 @@ public class StashMover extends Module {
         //    ⚠️ V6.7p29：这里必须把末影箱也算进来。p27 加末影箱时漏了这一处，
         //    导致「末影箱在 2 格外（不在开箱距离内）」时直接返回 MOVING、根本不寻路，
         //    人就站在原地等 15 秒超时 —— 实机表现就是「检测到了但不打开」。
-        var posState = mc.world.getBlockState(pos);
+        var posState = mc.level.getBlockState(pos);
         if (!(posState.getBlock() instanceof ChestBlock)
             && !(posState.getBlock() instanceof ShulkerBoxBlock)
             && !(posState.getBlock() instanceof EnderChestBlock)) {
@@ -4983,7 +4983,7 @@ public class StashMover extends Module {
 
         // ④ 目标永远是落脚空气格；远处用 NEAR 容错，近处用 PRECISE 站准
         BlockPos spot = approach.spot();
-        double distSq = mc.player.getBlockPos().getSquaredDistance(spot);
+        double distSq = mc.player.blockPosition().distSqr(spot);
         pathTo(spot, distSq <= 64 ? PathGoal.PRECISE : PathGoal.NEAR);
         return Approach.MOVING;
     }
@@ -5008,11 +5008,11 @@ public class StashMover extends Module {
             return;
         }
         openAttempts++;
-        Vec3d center = Vec3d.ofCenter(pos);
+        Vec3 center = Vec3.atCenterOf(pos);
         debugMsg("[开箱] 点击第 " + openAttempts + " 次"
             + "（眼→箱体 " + String.format(Locale.ROOT, "%.2f", eyeBoxDistance(pos))
             + " / 上限 " + String.format(Locale.ROOT, "%.1f", openReach.get())
-            + "，界面=" + (mc.currentScreen == null ? "无" : mc.currentScreen.getClass().getSimpleName()) + "）");
+            + "，界面=" + (mc.gui.screen() == null ? "无" : mc.gui.screen().getClass().getSimpleName()) + "）");
         realClick(pos);
         cooldown = 15;
         progress();
@@ -5023,7 +5023,7 @@ public class StashMover extends Module {
         return switch (m) {
             case SINGLE -> {
                 BlockPos t = mode.get() == Mode.TRIO ? sourceTarget.get() : targetChest.get();
-                if (t.equals(BlockPos.ORIGIN) || blacklist.contains(t) || isSkipped(t)) yield null;
+                if (t.equals(BlockPos.ZERO) || blacklist.contains(t) || isSkipped(t)) yield null;
                 yield t;
             }
             case RANGE -> nextFromQueue(true);
@@ -5038,16 +5038,16 @@ public class StashMover extends Module {
             if (ranged) {
                 BlockPos a = mode.get() == Mode.TRIO ? sourcePos1.get() : pos1.get();
                 BlockPos b = mode.get() == Mode.TRIO ? sourcePos2.get() : pos2.get();
-                if (a.equals(BlockPos.ORIGIN) || b.equals(BlockPos.ORIGIN)) return null;
+                if (a.equals(BlockPos.ZERO) || b.equals(BlockPos.ZERO)) return null;
                 scanChestsInBox(a, b, chestQueue, false);
             } else {
-                BlockPos center = mc.player.getBlockPos();
-                scanChestsInBox(center.add(-searchDistance.get(), -searchDistance.get(), -searchDistance.get()),
-                    center.add(searchDistance.get(), searchDistance.get(), searchDistance.get()), chestQueue,
+                BlockPos center = mc.player.blockPosition();
+                scanChestsInBox(center.offset(-searchDistance.get(), -searchDistance.get(), -searchDistance.get()),
+                    center.offset(searchDistance.get(), searchDistance.get(), searchDistance.get()), chestQueue,
                     ignoreSingleChest.get());
                 chestQueue.sort((x, y) -> Double.compare(
-                    mc.player.getBlockPos().getSquaredDistance(x),
-                    mc.player.getBlockPos().getSquaredDistance(y)));
+                    mc.player.blockPosition().distSqr(x),
+                    mc.player.blockPosition().distSqr(y)));
             }
             // V6.7p17：自家仓库永远不进待搬运队列（含双箱搭档另一半）——
             // 判区只管「走哪一段」，这条名单管「哪些箱子永远不能碰」，两件事互不依赖。
@@ -5087,19 +5087,19 @@ public class StashMover extends Module {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     BlockPos p = new BlockPos(x, y, z);
-                    var state = mc.world.getBlockState(p);
+                    var state = mc.level.getBlockState(p);
                     if (!(state.getBlock() instanceof ChestBlock)) continue;
-                    ChestType type = state.get(ChestBlock.CHEST_TYPE);
+                    ChestType type = state.getValue(ChestBlock.TYPE);
                     if (type == ChestType.SINGLE) {
                         if (skipSingle) continue;
                         out.add(p);
                         continue;
                     }
                     if (seen.contains(p)) continue;
-                    Direction facing = state.get(ChestBlock.FACING);
+                    Direction facing = state.getValue(ChestBlock.FACING);
                     int[] off = StashMoveLogic.chestOtherHalfOffset(type == ChestType.LEFT,
-                        facing.getOffsetX(), facing.getOffsetZ());
-                    BlockPos other = p.add(off[0], 0, off[1]);
+                        facing.getStepX(), facing.getStepZ());
+                    BlockPos other = p.offset(off[0], 0, off[1]);
                     seen.add(p);
                     seen.add(other);
                     out.add(p);
@@ -5167,9 +5167,9 @@ public class StashMover extends Module {
         for (int dx = -r; dx <= r; dx += 3) {
             for (int dy = -r; dy <= r; dy += 3) {
                 for (int dz = -r; dz <= r; dz += 3) {
-                    BlockPos p = center.add(dx, dy, dz);
-                    if (mc.world.getBlockState(p).getBlock() != net.minecraft.block.Blocks.LAVA) continue;
-                    double d = center.getSquaredDistance(p);
+                    BlockPos p = center.offset(dx, dy, dz);
+                    if (mc.level.getBlockState(p).getBlock() != net.minecraft.world.level.block.Blocks.LAVA) continue;
+                    double d = center.distSqr(p);
                     if (d < bestD) {
                         bestD = d;
                         best = p;
@@ -5181,17 +5181,17 @@ public class StashMover extends Module {
     }
 
     private void faceBlock(BlockPos pos) {
-        Vec3d center = Vec3d.ofCenter(pos);
+        Vec3 center = Vec3.atCenterOf(pos);
         double dx = center.x - mc.player.getX();
         double dz = center.z - mc.player.getZ();
-        mc.player.setYaw((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
-        mc.player.setPitch((float) (-Math.toDegrees(Math.atan2(center.y - mc.player.getEyePos().y,
+        mc.player.setYRot((float) (Math.toDegrees(Math.atan2(dz, dx)) - 90.0));
+        mc.player.setXRot((float) (-Math.toDegrees(Math.atan2(center.y - mc.player.getEyePosition().y,
             Math.sqrt(dx * dx + dz * dz)))));
     }
 
     private void releaseForward() {
         if (forwardHeld && mc.options != null) {
-            mc.options.forwardKey.setPressed(false);
+            mc.options.keyUp.setDown(false);
             forwardHeld = false;
         }
     }
@@ -5201,8 +5201,8 @@ public class StashMover extends Module {
         releaseForward();
         releaseSneak();
         if (mc.options != null) {
-            mc.options.backKey.setPressed(false);
-            mc.options.jumpKey.setPressed(false);
+            mc.options.keyDown.setDown(false);
+            mc.options.keyJump.setDown(false);
         }
         backoffTicks = 0;
     }
@@ -5264,8 +5264,8 @@ public class StashMover extends Module {
             : trioZone == StashMoveLogic.Zone.STORE ? "存储箱区" : "未知区";
         String dist = "-";
         String door = "-";
-        if (td != null && !td.equals(BlockPos.ORIGIN)) {
-            Vec3d c = Vec3d.ofCenter(td.down(1));
+        if (td != null && !td.equals(BlockPos.ZERO)) {
+            Vec3 c = Vec3.atCenterOf(td.below(1));
             double d = Math.hypot(c.x - mc.player.getX(), c.z - mc.player.getZ());
             dist = String.format(Locale.ROOT, "%.2f", d);
             door = trapdoorIsOpenOrAbsent(td) ? "开" : "关";
@@ -5275,7 +5275,7 @@ public class StashMover extends Module {
             + " 珍珠=" + countPearls()
             + " 距柱心=" + dist
             + " 活板门=" + door
-            + " 在水里=" + (mc.player.isTouchingWater() ? "是" : "否");
+            + " 在水里=" + (mc.player.isInWater() ? "是" : "否");
 
         // 内容变了就打；内容没变则每 10 秒补一条「仍在…」，让人知道没死（也方便算卡了多久）
         if (summary.equals(lastHeartbeatSummary)) {
@@ -5308,7 +5308,7 @@ public class StashMover extends Module {
 
     @EventHandler
     private void onRender(Render3DEvent event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
 
         Color green = new Color(0, 255, 0, 100);        // 珍珠房活板门
         Color blue = new Color(0, 170, 255, 100);       // 珍珠箱
@@ -5338,7 +5338,7 @@ public class StashMover extends Module {
                 event.renderer.box(p, faint, faint, ShapeMode.Sides, 0);
             }
             // 当前正在操作（要点开）的箱子：白框全亮，一眼看出它在开哪一格
-            if (openChest != null && !openChest.equals(BlockPos.ORIGIN)) {
+            if (openChest != null && !openChest.equals(BlockPos.ZERO)) {
                 event.renderer.box(openChest, active, active, ShapeMode.Both, 0);
             }
             for (BlockPos p : blacklist) {
@@ -5359,7 +5359,7 @@ public class StashMover extends Module {
     }
 
     private void drawIfSet(Render3DEvent event, BlockPos pos, Color color) {
-        if (pos == null || pos.equals(BlockPos.ORIGIN)) return;
+        if (pos == null || pos.equals(BlockPos.ZERO)) return;
         event.renderer.box(pos, color, color, ShapeMode.Both, 0);
     }
 }

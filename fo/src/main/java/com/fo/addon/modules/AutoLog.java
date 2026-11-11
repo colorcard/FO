@@ -14,11 +14,11 @@ import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
 import meteordevelopment.meteorclient.utils.player.SlotUtils;
 import meteordevelopment.meteorclient.utils.world.TickRate;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.s2c.common.DisconnectS2CPacket;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.common.ClientboundDisconnectPacket;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /**
  * FO 自动下线：多种触发条件下自动断开服务器（安全网）。
@@ -212,7 +212,7 @@ public class AutoLog extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.player.getAbilities().allowFlying) return;
+        if (mc.player == null || mc.player.getAbilities().mayfly) return;
 
         // 服务器无响应
         if (serverNotResponding.get() && !waitingForReconnection) {
@@ -234,8 +234,8 @@ public class AutoLog extends Module {
         }
 
         // 传送门超时
-        if (logPortal.get() && mc.player.portalManager != null) {
-            if (mc.player.portalManager.isInPortal()) {
+        if (logPortal.get() && mc.player.portalProcess != null) {
+            if (mc.player.portalProcess.isInsidePortalThisTick()) {
                 currPortalTicks++;
                 if (currPortalTicks > portalTicks.get()) {
                     logOut("在传送门内停留 " + currPortalTicks + " tick，自动下线.", true);
@@ -263,8 +263,8 @@ public class AutoLog extends Module {
 
         // 图腾不足 (背包 + 副手)
         if (logTotem.get()) {
-            int totems = mc.player.getInventory().count(Items.TOTEM_OF_UNDYING)
-                + (mc.player.getOffHandStack().getItem() == Items.TOTEM_OF_UNDYING ? 1 : 0);
+            int totems = mc.player.getInventory().countItem(Items.TOTEM_OF_UNDYING)
+                + (mc.player.getOffhandItem().getItem() == Items.TOTEM_OF_UNDYING ? 1 : 0);
             if (totems < totemThreshold.get()) {
                 logOut("不死图腾 " + totems + " 个少于设定 " + totemThreshold.get() + "，自动下线.", true);
                 return;
@@ -274,11 +274,11 @@ public class AutoLog extends Module {
         // 护甲耐久过低
         if (logArmor.get()) {
             for (int i = 0; i < 4; i++) {
-                ItemStack armorPiece = mc.player.getInventory().getStack(SlotUtils.ARMOR_START + i);
+                ItemStack armorPiece = mc.player.getInventory().getItem(SlotUtils.ARMOR_START + i);
                 if (ignoreElytra.get() && armorPiece.getItem() == Items.ELYTRA) continue;
                 boolean damaged = RepairLogic.armorTooDamaged(
-                    armorPiece.getMaxDamage(), armorPiece.getDamage(),
-                    armorPiece.isDamageable(), armorPercent.get());
+                    armorPiece.getMaxDamage(), armorPiece.getDamageValue(),
+                    armorPiece.isDamageableItem(), armorPercent.get());
                 if (damaged) {
                     logOut("护甲耐久过低，自动下线.", true);
                     return;
@@ -302,6 +302,6 @@ public class AutoLog extends Module {
         if (turnOffReconnect && Modules.get().get(AutoReconnect.class).isActive()) {
             Modules.get().get(AutoReconnect.class).toggle();
         }
-        mc.player.networkHandler.onDisconnect(new DisconnectS2CPacket(Text.literal("[FO 自动下线] " + reason)));
+        mc.player.connection.handleDisconnect(new ClientboundDisconnectPacket(Component.literal("[FO 自动下线] " + reason)));
     }
 }

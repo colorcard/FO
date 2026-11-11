@@ -27,9 +27,9 @@ import meteordevelopment.meteorclient.gui.widgets.containers.WTable;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import net.minecraft.client.Minecraft;
 import meteordevelopment.meteorclient.settings.Setting;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import net.minecraft.client.MinecraftClient;
 import org.slf4j.Logger;
 
 public class AddonTemplate extends MeteorAddon {
@@ -47,8 +47,8 @@ public class AddonTemplate extends MeteorAddon {
             @SuppressWarnings("unchecked")
             Setting<Object2IntMap<String>> cast = (Setting<Object2IntMap<String>>) setting;
             WButton button = table.add(theme.button("选择")).expandCellX().widget();
-            button.action = () -> MinecraftClient.getInstance()
-                .setScreen(new EnchantLevelMapSettingScreen(theme, cast));
+            button.action = () -> Minecraft.getInstance()
+                .gui.setScreen(new EnchantLevelMapSettingScreen(theme, cast));
         });
 
         // V6.27 新增；V6.29/V6.30 反复调样式，V6.31 定稿：

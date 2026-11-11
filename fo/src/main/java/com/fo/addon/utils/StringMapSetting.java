@@ -8,8 +8,7 @@ import meteordevelopment.meteorclient.gui.widgets.pressable.WMinus;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WPlus;
 import meteordevelopment.meteorclient.settings.IVisible;
 import meteordevelopment.meteorclient.settings.Setting;
-import net.minecraft.nbt.NbtCompound;
-
+import net.minecraft.nbt.CompoundTag;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -58,8 +57,8 @@ public class StringMapSetting extends Setting<Map<String, String>> {
     }
 
     @Override
-    public NbtCompound save(NbtCompound tag) {
-        NbtCompound mapTag = new NbtCompound();
+    public CompoundTag save(CompoundTag tag) {
+        CompoundTag mapTag = new CompoundTag();
         for (Map.Entry<String, String> e : get().entrySet()) {
             mapTag.putString(e.getKey(), e.getValue());
         }
@@ -68,11 +67,11 @@ public class StringMapSetting extends Setting<Map<String, String>> {
     }
 
     @Override
-    public Map<String, String> load(NbtCompound tag) {
+    public Map<String, String> load(CompoundTag tag) {
         get().clear();
-        NbtCompound mapTag = tag.getCompoundOrEmpty("map");
-        for (String key : mapTag.getKeys()) {
-            get().put(key, mapTag.getString(key, ""));
+        CompoundTag mapTag = tag.getCompoundOrEmpty("map");
+        for (String key : mapTag.keySet()) {
+            get().put(key, mapTag.getStringOr(key, ""));
         }
         return get();
     }

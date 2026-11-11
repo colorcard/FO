@@ -1,11 +1,11 @@
 package com.fo.addon.utils;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * GrimV3 方块破坏 sequence 补偿管理器。
@@ -16,7 +16,7 @@ import net.minecraft.util.math.Vec3d;
  *  服务器 ACK 后认为预测合法。
  */
 public final class FakeBlockManager {
-    private static final MinecraftClient mc = MinecraftClient.getInstance();
+    private static final Minecraft mc = Minecraft.getInstance();
 
     /** sequence -> 假装在挖的方块 */
     public static final Int2ObjectOpenHashMap<BlockPos> fakeMining = new Int2ObjectOpenHashMap<>(8);
@@ -27,12 +27,12 @@ public final class FakeBlockManager {
      * 对指定方块发一次"假破坏补偿"包。
      */
     public static void addFakeCompensate(BlockPos pos) {
-        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
 
-        Direction dir = Direction.getFacing(mc.player.getEyePos().subtract(Vec3d.ofCenter(pos)));
+        Direction dir = Direction.getApproximateNearest(mc.player.getEyePosition().subtract(Vec3.atCenterOf(pos)));
         int seq = nextSequence();
-        mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
-                PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, pos, dir, seq));
+        mc.getConnection().send(new ServerboundPlayerActionPacket(
+                ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, pos, dir, seq));
         fakeMining.put(seq, pos);
     }
 
@@ -47,8 +47,8 @@ public final class FakeBlockManager {
     }
 
     private static int nextSequence() {
-        var re = mc.world.getPendingUpdateManager().incrementSequence();
-        int seq = re.sequence;
+        var re = mc.level.getBlockStatePredictionHandler().startPredicting();
+        int seq = re.currentSequence();
         re.close();
         return seq;
     }

@@ -1,11 +1,10 @@
 package com.fo.addon.utils;
 
-import net.minecraft.item.Item;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
 
 /**
  * AutoTrash 默认白名单（62 项，来自用户实测配置 + V4.22 加沙）。
@@ -92,7 +91,7 @@ public final class TrashDefaults {
     public static List<Item> toItems() {
         List<Item> out = new ArrayList<>(DEFAULT_WHITELIST_IDS.size());
         for (String id : DEFAULT_WHITELIST_IDS) {
-            Item item = Registries.ITEM.get(Identifier.tryParse(id));
+            Item item = BuiltInRegistries.ITEM.getValue(Identifier.tryParse(id));
             if (item != null) out.add(item);
         }
         return out;

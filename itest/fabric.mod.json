@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "fo-it",
+  "version": "1.0.0",
+  "name": "FO Integration Test",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["fo.it.FoIntegrationTest"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "~26.3",
+    "java": ">=25",
+    "fo": "*",
+    "meteor-client": "*"
+  }
+}

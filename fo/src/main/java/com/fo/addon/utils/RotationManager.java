@@ -2,15 +2,15 @@ package com.fo.addon.utils;
 
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.utils.player.Rotations;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 
 /**
  * 旋转管理器 - 统一管理模块的视角旋转（移植自 meteor-miku util.RotationManager）。
  * 基于优先级处理旋转冲突，发送完整位置包更新服务器朝向并同步客户端视角。
  */
 public class RotationManager {
-    MinecraftClient mc = MinecraftClient.getInstance();
+    Minecraft mc = Minecraft.getInstance();
 
     private static volatile RotationManager instance;
 
@@ -19,7 +19,7 @@ public class RotationManager {
 
     private RotationManager() {
         MeteorClient.EVENT_BUS.subscribe(this);
-        mc = MinecraftClient.getInstance();
+        mc = Minecraft.getInstance();
     }
 
     public static RotationManager getInstance() {
@@ -40,15 +40,15 @@ public class RotationManager {
         this.currentRotation = rotation;
         this.timer.reset();
         mc.player
-            .networkHandler
-            .sendPacket(
-                new PlayerMoveC2SPacket.Full(
+            .connection
+            .send(
+                new ServerboundMovePlayerPacket.PosRot(
                     mc.player.getX(),
                     mc.player.getY(),
                     mc.player.getZ(),
                     rotation.getYaw(),
                     rotation.getPitch(),
-                    mc.player.isOnGround(),
+                    mc.player.onGround(),
                     mc.player.horizontalCollision
                 )
             );
@@ -59,15 +59,15 @@ public class RotationManager {
     /** 同步并重置旋转状态：发送玩家真实朝向并清除当前旋转 */
     public void sync() {
         mc.player
-            .networkHandler
-            .sendPacket(
-                new PlayerMoveC2SPacket.Full(
+            .connection
+            .send(
+                new ServerboundMovePlayerPacket.PosRot(
                     mc.player.getX(),
                     mc.player.getY(),
                     mc.player.getZ(),
-                    mc.player.getYaw(),
-                    mc.player.getPitch(),
-                    mc.player.isOnGround(),
+                    mc.player.getYRot(),
+                    mc.player.getXRot(),
+                    mc.player.onGround(),
                     mc.player.horizontalCollision
                 )
             );

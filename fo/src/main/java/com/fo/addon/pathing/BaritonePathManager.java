@@ -1,13 +1,12 @@
 package com.fo.addon.pathing;
 
-import net.minecraft.block.Block;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.function.Predicate;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 
 /** 纯反射调用 BaritoneAPI，不依赖 baritone-api 编译期类。任何一步失败都会抛出异常，由 PathManagers 回退到空实现。 */
 public class BaritonePathManager implements IPathManager {
@@ -182,26 +181,10 @@ public class BaritonePathManager implements IPathManager {
             Object setting = f.get(settings);
             java.lang.reflect.Field valueField = setting.getClass().getField("value");
             if (protect) {
-                Block[] shulkers = new Block[]{
-                    net.minecraft.block.Blocks.SHULKER_BOX,
-                    net.minecraft.block.Blocks.WHITE_SHULKER_BOX,
-                    net.minecraft.block.Blocks.ORANGE_SHULKER_BOX,
-                    net.minecraft.block.Blocks.MAGENTA_SHULKER_BOX,
-                    net.minecraft.block.Blocks.LIGHT_BLUE_SHULKER_BOX,
-                    net.minecraft.block.Blocks.YELLOW_SHULKER_BOX,
-                    net.minecraft.block.Blocks.LIME_SHULKER_BOX,
-                    net.minecraft.block.Blocks.PINK_SHULKER_BOX,
-                    net.minecraft.block.Blocks.GRAY_SHULKER_BOX,
-                    net.minecraft.block.Blocks.LIGHT_GRAY_SHULKER_BOX,
-                    net.minecraft.block.Blocks.CYAN_SHULKER_BOX,
-                    net.minecraft.block.Blocks.PURPLE_SHULKER_BOX,
-                    net.minecraft.block.Blocks.BLUE_SHULKER_BOX,
-                    net.minecraft.block.Blocks.BROWN_SHULKER_BOX,
-                    net.minecraft.block.Blocks.GREEN_SHULKER_BOX,
-                    net.minecraft.block.Blocks.RED_SHULKER_BOX,
-                    net.minecraft.block.Blocks.BLACK_SHULKER_BOX
-                };
-                valueField.set(setting, java.util.Arrays.asList(shulkers));
+                java.util.List<Block> shulkers = new java.util.ArrayList<>();
+                shulkers.add(net.minecraft.world.level.block.Blocks.SHULKER_BOX);
+                shulkers.addAll(net.minecraft.world.level.block.Blocks.DYED_SHULKER_BOX.asList());
+                valueField.set(setting, shulkers);
             } else {
                 valueField.set(setting, new java.util.ArrayList<Block>());
             }
@@ -250,13 +233,13 @@ public class BaritonePathManager implements IPathManager {
             if (avoidBlocks) {
                 backupSetting(settings, "blocksToAvoid");
                 List<Block> avoid = new java.util.ArrayList<>();
-                avoid.add(net.minecraft.block.Blocks.SCULK_SENSOR);
-                avoid.add(net.minecraft.block.Blocks.SCULK);
-                avoid.add(net.minecraft.block.Blocks.SCULK_VEIN);
-                avoid.add(net.minecraft.block.Blocks.SCULK_CATALYST);
-                avoid.add(net.minecraft.block.Blocks.SCULK_SHRIEKER);
-                avoid.add(net.minecraft.block.Blocks.TRIAL_SPAWNER);
-                avoid.add(net.minecraft.block.Blocks.SPAWNER);
+                avoid.add(net.minecraft.world.level.block.Blocks.SCULK_SENSOR);
+                avoid.add(net.minecraft.world.level.block.Blocks.SCULK);
+                avoid.add(net.minecraft.world.level.block.Blocks.SCULK_VEIN);
+                avoid.add(net.minecraft.world.level.block.Blocks.SCULK_CATALYST);
+                avoid.add(net.minecraft.world.level.block.Blocks.SCULK_SHRIEKER);
+                avoid.add(net.minecraft.world.level.block.Blocks.TRIAL_SPAWNER);
+                avoid.add(net.minecraft.world.level.block.Blocks.SPAWNER);
                 setSettingValue(settings, "blocksToAvoid", avoid);
             }
         } catch (Exception e) {

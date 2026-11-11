@@ -19,20 +19,19 @@ import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.SaplingBlock;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
-
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.SaplingBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -144,7 +143,7 @@ public class AutoTree extends Module {
         if (System.currentTimeMillis() - lastUseMs < useDelay.get()) return;
 
         // 仅手持树苗时工作
-        ItemStack held = mc.player.getInventory().getStack(mc.player.getInventory().getSelectedSlot());
+        ItemStack held = mc.player.getInventory().getItem(mc.player.getInventory().getSelectedSlot());
         if (!isSaplingItem(held)) {
             hint("自动种树: 请手持树苗 (橡树/云杉/桦树/丛林/金合欢/深色橡树/樱花树苗).");
             return;
@@ -165,9 +164,9 @@ public class AutoTree extends Module {
         for (BlockPos pos : treePos) {
             if (done >= blocksPer.get()) break;
 
-            BlockState up = mc.world.getBlockState(pos.up());
+            BlockState up = mc.level.getBlockState(pos.above());
             boolean upIsSapling = up.getBlock() instanceof SaplingBlock;
-            boolean upIsAir = mc.world.isAir(pos.up()) || up.isReplaceable();
+            boolean upIsAir = mc.level.isEmptyBlock(pos.above()) || up.canBeReplaced();
 
             TreeLogic.Action action = TreeLogic.decide(
                 upIsSapling, upIsAir,
@@ -175,7 +174,7 @@ public class AutoTree extends Module {
             );
 
             if (action == TreeLogic.Action.BONEMEAL) {
-                bonemealSapling(pos.up(), boneMeal.slot());
+                bonemealSapling(pos.above(), boneMeal.slot());
                 done++;
                 lastUseMs = System.currentTimeMillis();
             } else if (action == TreeLogic.Action.PLANT) {
@@ -203,16 +202,16 @@ public class AutoTree extends Module {
      */
     private void bonemealSapling(BlockPos saplingPos, int boneMealSlot) {
         Direction side = getClickSide(saplingPos);
-        Vec3d point = new Vec3d(
-            saplingPos.getX() + 0.5 + side.getVector().getX() * 0.5,
-            saplingPos.getY() + 0.5 + side.getVector().getY() * 0.5,
-            saplingPos.getZ() + 0.5 + side.getVector().getZ() * 0.5
+        Vec3 point = new Vec3(
+            saplingPos.getX() + 0.5 + side.getUnitVec3i().getX() * 0.5,
+            saplingPos.getY() + 0.5 + side.getUnitVec3i().getY() * 0.5,
+            saplingPos.getZ() + 0.5 + side.getUnitVec3i().getZ() * 0.5
         );
         InvUtils.swap(boneMealSlot, true);
         snapLook(point);
-        mc.player.swingHand(Hand.MAIN_HAND);
+        mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getInteractAnimation(), false);
         BlockHitResult result = new BlockHitResult(point, side, saplingPos, false);
-        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, result);
+        mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, result);
         snapBack();
         InvUtils.swapBack();
     }
@@ -223,31 +222,31 @@ public class AutoTree extends Module {
      */
     private void plantSapling(BlockPos groundPos) {
         Direction side = Direction.UP;
-        Vec3d point = new Vec3d(
-            groundPos.getX() + 0.5 + side.getVector().getX() * 0.5,
-            groundPos.getY() + 0.5 + side.getVector().getY() * 0.5,
-            groundPos.getZ() + 0.5 + side.getVector().getZ() * 0.5
+        Vec3 point = new Vec3(
+            groundPos.getX() + 0.5 + side.getUnitVec3i().getX() * 0.5,
+            groundPos.getY() + 0.5 + side.getUnitVec3i().getY() * 0.5,
+            groundPos.getZ() + 0.5 + side.getUnitVec3i().getZ() * 0.5
         );
         snapLook(point);
-        mc.player.swingHand(Hand.MAIN_HAND);
+        mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getInteractAnimation(), false);
         BlockHitResult result = new BlockHitResult(point, side, groundPos, false);
-        mc.interactionManager.interactBlock(mc.player, Hand.MAIN_HAND, result);
+        mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, result);
         snapBack();
     }
 
     // ========== 同步瞬转（对齐 LeavesHack Rotation.snapAt/snapBack）==========
     // 只发服务端视角包，客户端视角不动——不存在异步回调被吞的问题。
-    private void snapLook(Vec3d point) {
+    private void snapLook(Vec3 point) {
         sendLookPacket((float) Rotations.getYaw(point), (float) Rotations.getPitch(point));
     }
 
     private void sendLookPacket(float yaw, float pitch) {
-        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
-            yaw, pitch, mc.player.isOnGround(), mc.player.horizontalCollision));
+        mc.getConnection().send(new ServerboundMovePlayerPacket.Rot(
+            yaw, pitch, mc.player.onGround(), mc.player.horizontalCollision));
     }
 
     private void snapBack() {
-        sendLookPacket(mc.player.getYaw(), mc.player.getPitch());
+        sendLookPacket(mc.player.getYRot(), mc.player.getXRot());
     }
 
     // ========== 可见侧面查找（对齐 LeavesHack BlockUtil.getClickSide / canSee）==========
@@ -256,7 +255,7 @@ public class AutoTree extends Module {
         double range = 100;
         for (Direction i : Direction.values()) {
             if (!canSee(pos, i)) continue;
-            double d = Math.sqrt(mc.player.getEyePos().squaredDistanceTo(pos.offset(i).toCenterPos()));
+            double d = Math.sqrt(mc.player.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos.relative(i))));
             if (d > range) continue;
             side = i;
             range = d;
@@ -266,7 +265,7 @@ public class AutoTree extends Module {
         side = Direction.UP;
         double best = Double.MAX_VALUE;
         for (Direction i : Direction.values()) {
-            double d = mc.player.getEyePos().squaredDistanceTo(pos.offset(i).toCenterPos());
+            double d = mc.player.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos.relative(i)));
             if (d < best) {
                 best = d;
                 side = i;
@@ -276,14 +275,14 @@ public class AutoTree extends Module {
     }
 
     private boolean canSee(BlockPos pos, Direction side) {
-        Vec3d test = pos.toCenterPos().add(
-            side.getVector().getX() * 0.5,
-            side.getVector().getY() * 0.5,
-            side.getVector().getZ() * 0.5);
-        HitResult result = mc.world.raycast(new RaycastContext(
-            mc.player.getEyePos(), test,
-            RaycastContext.ShapeType.COLLIDER,
-            RaycastContext.FluidHandling.NONE,
+        Vec3 test = Vec3.atCenterOf(pos).add(
+            side.getUnitVec3i().getX() * 0.5,
+            side.getUnitVec3i().getY() * 0.5,
+            side.getUnitVec3i().getZ() * 0.5);
+        HitResult result = mc.level.clip(new ClipContext(
+            mc.player.getEyePosition(), test,
+            ClipContext.Block.COLLIDER,
+            ClipContext.Fluid.NONE,
             mc.player));
         return result == null || result.getType() == HitResult.Type.MISS;
     }

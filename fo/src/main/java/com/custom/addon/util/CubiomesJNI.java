@@ -25,13 +25,27 @@ public class CubiomesJNI {
             loadFromJarOrSystem();
             loaded = true;
             System.out.println("[CubiomesJNI] Library loaded successfully");
-        } catch (Exception e) {
-            System.err.println("[CubiomesJNI] Failed to load library: " + e.getMessage());
+        } catch (Throwable e) {
+            // UnsatisfiedLinkError（例如把 Windows DLL 拿到 Linux 上加载）也是 Error，必须一并兜住，
+            // 否则会变成 ExceptionInInitializerError 把整个古城搜索线程带崩。
+            System.err.println("[CubiomesJNI] Failed to load library: " + e);
             loaded = false;
         }
     }
 
     private static void loadFromJarOrSystem() throws IOException {
+        // 当前 jar 只带 Windows DLL；非 Windows 直接走纯 Java 回退，避免加载 PE 文件产生误导性错误。
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (!os.contains("win")) {
+            try {
+                System.loadLibrary("CubiomesJNI");
+                System.out.println("[CubiomesJNI] Loaded from system library path");
+                return;
+            } catch (Throwable ignored) {
+                throw new IOException("CubiomesJNI 当前只提供 Windows 原生库，非 Windows 系统将使用纯 Java 回退");
+            }
+        }
+
         String dllName = "CubiomesJNI.dll";
 
         InputStream jniStream = CubiomesJNI.class.getResourceAsStream("/natives/windows/" + dllName);

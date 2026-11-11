@@ -2,8 +2,7 @@ package com.fo.addon.utils;
 
 import meteordevelopment.meteorclient.settings.IVisible;
 import meteordevelopment.meteorclient.settings.Setting;
-import net.minecraft.nbt.NbtCompound;
-
+import net.minecraft.nbt.CompoundTag;
 import java.util.function.Consumer;
 
 /**
@@ -43,12 +42,12 @@ public class StealStatsSetting extends Setting<Boolean> {
 
     /** 不落盘：统计是只读展示，配置里不留任何键。 */
     @Override
-    public NbtCompound save(NbtCompound tag) {
+    public CompoundTag save(CompoundTag tag) {
         return tag;
     }
 
     @Override
-    public Boolean load(NbtCompound tag) {
+    public Boolean load(CompoundTag tag) {
         return get();
     }
 

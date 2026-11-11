@@ -2,7 +2,7 @@ package com.fo.addon.utils;
 
 import com.mojang.logging.LogUtils;
 import meteordevelopment.meteorclient.MeteorClient;
-import net.minecraft.text.Text;
+import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 
 /**
@@ -35,8 +35,8 @@ public class Debug {
 
     public static void chat(Object obj) {
         if (MeteorClient.mc.player == null) return;
-        MeteorClient.mc.player.sendMessage(
-                obj instanceof Text t ? t : Text.literal(String.valueOf(obj)), false);
+        MeteorClient.mc.player.sendSystemMessage(
+                obj instanceof Component t ? t : Component.literal(String.valueOf(obj)));
     }
 
     public static void chat(Object... objs) {

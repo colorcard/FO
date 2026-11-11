@@ -53,26 +53,26 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.ChestBlock;
-import net.minecraft.block.entity.LootableContainerBlockEntity;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.block.enums.ChestType;
-import net.minecraft.client.gui.screen.ingame.InventoryScreen;
-import net.minecraft.component.type.ItemEnchantmentsComponent;
-import net.minecraft.enchantment.Enchantment;
-import net.minecraft.enchantment.EnchantmentHelper;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.world.Heightmap;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.BlockHitResult;
 
 /**
  * FO 古城战利品搜索（半自动）。
@@ -189,7 +189,7 @@ public class FOAncientCitySearch extends Module {
     private final Setting<Integer> stealRandomDelaySetting;
     private final Setting<Integer> stealInitDelaySetting;
 
-    private final MinecraftClient mc;
+    private final Minecraft mc;
     private Long manualSeed;
     private boolean searching;
     private CompletableFuture<Void> searchTask;
@@ -290,7 +290,7 @@ public class FOAncientCitySearch extends Module {
             "精确搜索古城中包含附魔金苹果和迅捷潜行3的箱子位置（半自动，结果输出到聊天与 Xaero 路径点；"
                 + "开启「自动偷取」后开箱即自动取走这两样）");
 
-        mc = MinecraftClient.getInstance();
+        mc = Minecraft.getInstance();
 
         searchTypeSetting = sgGeneral.add(new EnumSetting.Builder<LootTarget>()
             .name("搜索类型")
@@ -528,7 +528,7 @@ public class FOAncientCitySearch extends Module {
         }
         // 关闭模块：把本模块写入的 Xaero 路径点全部收掉（按记录坐标逐个删，
         // 不会碰你手动加的点）。本地记录保留，重新开启模块时会验证并重写路径点。
-        if (mc.world != null) {
+        if (mc.level != null) {
             String scope = currentScope();
             if (scope != null && !chestStore.isEmpty(scope)) {
                 int removed = clearWaypointsOf(chestStore.marks(scope));
@@ -572,13 +572,13 @@ public class FOAncientCitySearch extends Module {
     @EventHandler
     private void onInventory(InventoryEvent event) {
         if (!autoStealSetting.get()) return;
-        if (mc.player == null || mc.world == null) return;
-        if (!(mc.currentScreen instanceof HandledScreen<?>)) return;
-        if (mc.currentScreen instanceof InventoryScreen) return;   // 玩家自己的背包不算容器
+        if (mc.player == null || mc.level == null) return;
+        if (!(mc.gui.screen() instanceof AbstractContainerScreen<?>)) return;
+        if (mc.gui.screen() instanceof InventoryScreen) return;   // 玩家自己的背包不算容器
 
-        ScreenHandler handler = mc.player.currentScreenHandler;
-        if (handler == null || handler == mc.player.playerScreenHandler) return;
-        if (event.packet.syncId() != handler.syncId) return;       // 不是当前这个界面的同步包
+        AbstractContainerMenu handler = mc.player.containerMenu;
+        if (handler == null || handler == mc.player.inventoryMenu) return;
+        if (event.packet.containerId() != handler.containerId) return;       // 不是当前这个界面的同步包
 
         // 只偷箱子（V6.26）：判断依据复用本模块「刚打开的是哪个方块」那一套
         // （上一 tick 的准星指向 + 时效窗口）——这样偷取与「已开检测」永远指同一个方块。
@@ -587,7 +587,7 @@ public class FOAncientCitySearch extends Module {
         boolean targetKnown = lastTargetedBlock != null
             && tickCounter - lastTargetedAtTick <= TARGET_FRESH_TICKS;
         boolean isChest = targetKnown
-            && mc.world.getBlockState(lastTargetedBlock).getBlock() instanceof ChestBlock;
+            && mc.level.getBlockState(lastTargetedBlock).getBlock() instanceof ChestBlock;
         if (!AncientStealLogic.shouldScanContainer(targetKnown, isChest)) {
             debug("自动偷取：打开的不是箱子，跳过（"
                 + (targetKnown ? "识别为其他容器" : "拿不到方块依据") + "）");
@@ -612,7 +612,7 @@ public class FOAncientCitySearch extends Module {
         int playerInvStart = Math.max(0, handler.slots.size() - 36);
         List<Integer> hit = new ArrayList<>();
         for (int i = 0; i < playerInvStart; i++) {
-            ItemStack stack = handler.getSlot(i).getStack();
+            ItemStack stack = handler.getSlot(i).getItem();
             if (stack.isEmpty()) continue;
             boolean inList = stealItemsSetting.get().contains(stack.getItem());
             int swift = AncientStealLogic.swiftSneakLevel(bookEnchantLevels(stack));
@@ -624,13 +624,13 @@ public class FOAncientCitySearch extends Module {
 
         // 换了容器（syncId 变了）说明上一个容器已经关掉：它的最后一次点击没法再核对，
         // 按乐观口径计入累计统计，别把那次漏掉
-        if (stealQueueSyncId != handler.syncId) {
+        if (stealQueueSyncId != handler.containerId) {
             commitPendingStealOptimistically();
         }
 
         stealQueue.clear();
         stealQueue.addAll(hit);
-        stealQueueSyncId = handler.syncId;
+        stealQueueSyncId = handler.containerId;
         stealDelayTimer = Math.max(0, stealInitDelaySetting.get());
         stealSummary.clear();
         debug("自动偷取：命中 " + hit.size() + " 个槽位");
@@ -648,9 +648,9 @@ public class FOAncientCitySearch extends Module {
     private void processStealQueue() {
         if (stealQueue.isEmpty() && pendingStealSlot < 0) return;   // 没活干
 
-        ScreenHandler handler = mc.player == null ? null : mc.player.currentScreenHandler;
-        boolean sameScreen = mc.currentScreen instanceof HandledScreen<?>
-            && handler != null && handler.syncId == stealQueueSyncId;
+        AbstractContainerMenu handler = mc.player == null ? null : mc.player.containerMenu;
+        boolean sameScreen = mc.gui.screen() instanceof AbstractContainerScreen<?>
+            && handler != null && handler.containerId == stealQueueSyncId;
         if (!sameScreen) {
             abortStealQueue();      // 界面关了/换容器了
             return;
@@ -669,9 +669,9 @@ public class FOAncientCitySearch extends Module {
         }
 
         int slotId = stealQueue.poll();
-        ItemStack stack = handler.getSlot(slotId).getStack();
+        ItemStack stack = handler.getSlot(slotId).getItem();
         if (!stack.isEmpty()) {
-            stealSummary.merge(stack.getName().getString(), stack.getCount(), Integer::sum);
+            stealSummary.merge(stack.getHoverName().getString(), stack.getCount(), Integer::sum);
             rememberPendingSteal(slotId, stack);
             InvUtils.shiftClick().slotId(slotId);   // 整组挪进背包（对应彗星端的 shiftClick）
         }
@@ -685,7 +685,7 @@ public class FOAncientCitySearch extends Module {
     private void rememberPendingSteal(int slotId, ItemStack stack) {
         pendingStealSlot = slotId;
         pendingStealCount = stack.getCount();
-        pendingStealItemId = Registries.ITEM.getId(stack.getItem()).toString();
+        pendingStealItemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         int swift = AncientStealLogic.swiftSneakLevel(bookEnchantLevels(stack));
         pendingStealBookEnchantId = swift > 0 ? AncientStealStats.SWIFT_SNEAK_ID : null;
         pendingStealBookLevel = swift;
@@ -697,7 +697,7 @@ public class FOAncientCitySearch extends Module {
      * <p>shift 点击是**整组**挪走，所以：槽位变空（或数量变少）= 取到了；数量没变 = 没生效
      * （典型是背包满了），此时不记账。
      */
-    private void verifyPendingSteal(ScreenHandler handler) {
+    private void verifyPendingSteal(AbstractContainerMenu handler) {
         if (pendingStealSlot < 0) return;
         int slot = pendingStealSlot;
         int amount = pendingStealCount;
@@ -707,7 +707,7 @@ public class FOAncientCitySearch extends Module {
         clearPendingSteal();
 
         if (handler == null || slot >= handler.slots.size()) return;
-        ItemStack now = handler.getSlot(slot).getStack();
+        ItemStack now = handler.getSlot(slot).getItem();
         int left = now.isEmpty() ? 0 : now.getCount();
         int taken = Math.max(0, amount - left);
         if (taken <= 0) return;
@@ -783,11 +783,11 @@ public class FOAncientCitySearch extends Module {
 
     /** 该物品堆的附魔（附魔 ID → 等级）；非附魔书返回空表。 */
     private Map<String, Integer> bookEnchantLevels(ItemStack stack) {
-        if (!stack.isOf(Items.ENCHANTED_BOOK)) return Map.of();
-        ItemEnchantmentsComponent enchantments = EnchantmentHelper.getEnchantments(stack);
+        if (!stack.is(Items.ENCHANTED_BOOK)) return Map.of();
+        ItemEnchantments enchantments = EnchantmentHelper.getEnchantmentsForCrafting(stack);
         Map<String, Integer> out = new HashMap<>();
-        for (Object2IntMap.Entry<RegistryEntry<Enchantment>> entry : enchantments.getEnchantmentEntries()) {
-            entry.getKey().getKey().ifPresent(key -> out.put(key.getValue().toString(), entry.getIntValue()));
+        for (Object2IntMap.Entry<Holder<Enchantment>> entry : enchantments.entrySet()) {
+            entry.getKey().unwrapKey().ifPresent(key -> out.put(key.identifier().toString(), entry.getIntValue()));
         }
         return out;
     }
@@ -795,7 +795,7 @@ public class FOAncientCitySearch extends Module {
     /** 世界内高亮：只画玩家附近的命中箱子，颜色按命中类型区分。 */
     @EventHandler
     private void onRender(Render3DEvent event) {
-        if (!highlightSetting.get() || mc.player == null || mc.world == null) return;
+        if (!highlightSetting.get() || mc.player == null || mc.level == null) return;
         String scope = currentScope();
         if (scope == null) return;
         if (chestStore.isEmpty(scope)) return;
@@ -806,7 +806,7 @@ public class FOAncientCitySearch extends Module {
         Long currentSeed = currentSeedGuess();
         if (storedSeed != null && currentSeed != null && !storedSeed.equals(currentSeed)) return;
 
-        BlockPos p = mc.player.getBlockPos();
+        BlockPos p = mc.player.blockPosition();
         List<AncientChestStore.Mark> near = AncientChestStore.within(
             chestStore.marks(scope), p.getX(), p.getY(), p.getZ(), highlightRadiusSetting.get());
         for (AncientChestStore.Mark m : near) {
@@ -826,7 +826,7 @@ public class FOAncientCitySearch extends Module {
      * 柱子要从地表就能看到才有「找挖掘点」的意义。地表 Y 每个箱子只扫一次（缓存）。
      */
     private void drawBeam(Render3DEvent event, int x, int y, int z, SettingColor color) {
-        Object dim = mc.world != null ? mc.world.getRegistryKey() : null;
+        Object dim = mc.level != null ? mc.level.dimension() : null;
         if (dim != groundCacheWorld) {
             groundCache.clear();
             groundCacheWorld = dim;
@@ -850,12 +850,12 @@ public class FOAncientCitySearch extends Module {
 
     /** 箱子正上方的地表 Y（首个非空气方块之上）。区块未加载或异常时返回 null。 */
     private Integer findSurfaceY(int x, int z) {
-        BlockPos pos = new BlockPos(x, mc.world.getBottomY(), z);
+        BlockPos pos = new BlockPos(x, mc.level.getMinY(), z);
         if (!isChunkLoaded(pos)) {
             return null;
         }
         try {
-            return mc.world.getTopY(Heightmap.Type.WORLD_SURFACE, x, z);
+            return mc.level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
         } catch (RuntimeException e) {
             return null;
         }
@@ -878,10 +878,10 @@ public class FOAncientCitySearch extends Module {
 
     /** 当前作用域：服务器地址（单人则「单人」）+ 维度，避免不同服务器/维度的记录互相串。 */
     private String currentScope() {
-        if (mc.world == null) return null;
-        String server = mc.getCurrentServerEntry() != null
-            ? mc.getCurrentServerEntry().address : "单人";
-        return server + "|" + mc.world.getRegistryKey().getValue();
+        if (mc.level == null) return null;
+        String server = mc.getCurrentServer() != null
+            ? mc.getCurrentServer().ip : "单人";
+        return server + "|" + mc.level.dimension().identifier();
     }
 
     /**
@@ -968,8 +968,8 @@ public class FOAncientCitySearch extends Module {
         for (AncientChestStore.Mark m : marks) {
             BlockPos pos = new BlockPos(m.x(), m.y(), m.z());
             if (!isChunkLoaded(pos)) continue;
-            if (!(mc.world.getBlockState(pos).getBlock() instanceof ChestBlock)) continue;
-            if (mc.world.getBlockEntity(pos) instanceof LootableContainerBlockEntity lootable
+            if (!(mc.level.getBlockState(pos).getBlock() instanceof ChestBlock)) continue;
+            if (mc.level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity lootable
                 && lootable.getLootTable() != null) {
                 syncsLoot = true;
                 break;
@@ -987,11 +987,11 @@ public class FOAncientCitySearch extends Module {
                 alive.add(m);   // 区块没加载，无从验证，先保留
                 continue;
             }
-            if (!(mc.world.getBlockState(pos).getBlock() instanceof ChestBlock)) {
+            if (!(mc.level.getBlockState(pos).getBlock() instanceof ChestBlock)) {
                 removedMined++; // 被挖/被替换
                 continue;
             }
-            if (mc.world.getBlockEntity(pos) instanceof LootableContainerBlockEntity lootable) {
+            if (mc.level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity lootable) {
                 AncientOpenedChestPolicy.Decision d =
                     AncientOpenedChestPolicy.decide(syncsLoot, lootable.getLootTable() != null);
                 if (d == AncientOpenedChestPolicy.Decision.UNOPENED) {
@@ -1040,8 +1040,8 @@ public class FOAncientCitySearch extends Module {
      */
     private Long currentSeedGuess() {
         try {
-            if (mc.getServer() != null) {
-                return mc.getServer().getOverworld().getSeed();
+            if (mc.getSingleplayerServer() != null) {
+                return mc.getSingleplayerServer().overworld().getSeed();
             }
             if (applySeedSetting.get()) {
                 return AncientSearchLogic.parseSeedInput(seedSetting.get().trim());
@@ -1057,7 +1057,7 @@ public class FOAncientCitySearch extends Module {
      * 两种情况都把世界高亮与 Xaero 路径点一并删除。
      */
     private void cleanupStaleMarks() {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
         String scope = currentScope();
         if (scope == null || chestStore.isEmpty(scope)) return;
 
@@ -1068,19 +1068,19 @@ public class FOAncientCitySearch extends Module {
         //    被旧判定误当成「开箱」，把准星指着那个箱子的标记删了（且删的是本地记录，
         //    关掉背包也不会恢复）。修两处：显式排除玩家自己的背包界面；
         //    并要求指向记录是 10 tick 内的，防止过期的旧指向被无关 GUI 触发。
-        if (mc.crosshairTarget instanceof BlockHitResult hit) {
+        if (mc.hitResult instanceof BlockHitResult hit) {
             lastTargetedBlock = hit.getBlockPos();
             lastTargetedAtTick = tickCounter;
         }
-        boolean containerOpen = mc.currentScreen instanceof HandledScreen<?>
-            && !(mc.currentScreen instanceof InventoryScreen);
+        boolean containerOpen = mc.gui.screen() instanceof AbstractContainerScreen<?>
+            && !(mc.gui.screen() instanceof InventoryScreen);
         if (containerOpen && !wasContainerOpen && lastTargetedBlock != null
             && tickCounter - lastTargetedAtTick <= TARGET_FRESH_TICKS) {
             // 先记入「已开名单」（V6.19）：之后所有搜索都跳过这个坐标，
             // 重开模块/重新搜索不会再把开过的箱子加回来。
             // V6.7p21：只有「搜索命中的箱子」才写名单 —— 旧实现把玩家开过的任何 ChestBlock
             // 都记进去，既让 opened 无界膨胀，也会让「只偷命中箱」把自家仓库误判成命中。
-            if (mc.world.getBlockState(lastTargetedBlock).getBlock() instanceof ChestBlock
+            if (mc.level.getBlockState(lastTargetedBlock).getBlock() instanceof ChestBlock
                 && chestStore.isSearchHit(scope, lastTargetedBlock.getX(),
                     lastTargetedBlock.getZ(), SEARCH_HIT_RADIUS)) {
                 chestStore.markOpened(scope, lastTargetedBlock.getX(), lastTargetedBlock.getZ());
@@ -1100,17 +1100,17 @@ public class FOAncientCitySearch extends Module {
         // 2) 周期性检查箱子是否还在（限流，别每 tick 扫）
         if (--cleanCooldown <= 0) {
             cleanCooldown = 20;
-            BlockPos p = mc.player.getBlockPos();
+            BlockPos p = mc.player.blockPosition();
             int radius = Math.min(highlightRadiusSetting.get(), 128);
             for (AncientChestStore.Mark m : AncientChestStore.within(
                     chestStore.marks(scope), p.getX(), p.getY(), p.getZ(), radius)) {
                 BlockPos pos = new BlockPos(m.x(), m.y(), m.z());
                 if (!isChunkLoaded(pos)) continue;   // 未加载的区块读出来是空气，不能当成被挖了
-                BlockState state = mc.world.getBlockState(pos);
+                BlockState state = mc.level.getBlockState(pos);
                 if (state.getBlock() instanceof ChestBlock) {
                     // 顺手自适应学习「服务端是否下发 LootTable」；确认下发后，
                     // 「null = 已开过」能抓到关着模块时被开掉的箱子（区块重载后字段已被服务端清空）
-                    if (mc.world.getBlockEntity(pos) instanceof LootableContainerBlockEntity lootable) {
+                    if (mc.level.getBlockEntity(pos) instanceof RandomizableContainerBlockEntity lootable) {
                         boolean present = lootable.getLootTable() != null;
                         AncientOpenedChestPolicy.Decision d =
                             AncientOpenedChestPolicy.decide(lootSyncConfirmed, present);
@@ -1149,25 +1149,25 @@ public class FOAncientCitySearch extends Module {
      * 只按这一个方向找搭档，不会误伤相邻摆放的同朝向单箱/另一组双箱。
      */
     private boolean removePartnerMark(String scope, BlockPos pos) {
-        BlockState state = mc.world.getBlockState(pos);
+        BlockState state = mc.level.getBlockState(pos);
         if (!(state.getBlock() instanceof ChestBlock)) {
             return false;
         }
-        Direction facing = state.get(ChestBlock.FACING);
-        ChestType type = state.get(ChestBlock.CHEST_TYPE);
+        Direction facing = state.getValue(ChestBlock.FACING);
+        ChestType type = state.getValue(ChestBlock.TYPE);
         if (type == ChestType.SINGLE) {
             return false;
         }
         Direction partnerDir = type == ChestType.LEFT
-            ? facing.rotateYClockwise()
-            : facing.rotateYCounterclockwise();
-        BlockPos partner = pos.offset(partnerDir);
+            ? facing.getClockWise()
+            : facing.getCounterClockWise();
+        BlockPos partner = pos.relative(partnerDir);
         if (!isChunkLoaded(partner)) {
             return false;
         }
-        BlockState partnerState = mc.world.getBlockState(partner);
+        BlockState partnerState = mc.level.getBlockState(partner);
         if (!(partnerState.getBlock() instanceof ChestBlock)
-            || partnerState.get(ChestBlock.CHEST_TYPE) == ChestType.SINGLE) {
+            || partnerState.getValue(ChestBlock.TYPE) == ChestType.SINGLE) {
             return false;
         }
         chestStore.markOpened(scope, partner.getX(), partner.getZ());
@@ -1181,7 +1181,7 @@ public class FOAncientCitySearch extends Module {
 
     private boolean isChunkLoaded(BlockPos pos) {
         try {
-            return mc.world.getChunkManager().isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4);
+            return mc.level.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4);
         } catch (RuntimeException e) {
             return false;
         }
@@ -1197,8 +1197,8 @@ public class FOAncientCitySearch extends Module {
             return;
         }
         Long seed = manualSeed;
-        if (seed == null && mc.getServer() != null) {
-            seed = mc.getServer().getOverworld().getSeed();
+        if (seed == null && mc.getSingleplayerServer() != null) {
+            seed = mc.getSingleplayerServer().overworld().getSeed();
         }
         if (seed == null) {
             error("无法获取世界种子，请手动设置种子");
@@ -1208,7 +1208,7 @@ public class FOAncientCitySearch extends Module {
         storeReplacePending = true;
         pendingMarks.clear();
         setSearching(true);
-        BlockPos playerPos = mc.player.getBlockPos();
+        BlockPos playerPos = mc.player.blockPosition();
         info("开始搜索古城中的" + searchTypeSetting.get() + "... 半径: "
             + searchRadiusSetting.get() + " 区块 版本: " + gameVersionSetting.get());
         long finalSeed = seed;

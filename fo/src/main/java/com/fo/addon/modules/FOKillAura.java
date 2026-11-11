@@ -22,26 +22,31 @@ import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.world.TickRate;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.EndermanEntity;
-import net.minecraft.entity.mob.ZombifiedPiglinEntity;
-import net.minecraft.entity.passive.AnimalEntity;
-import net.minecraft.entity.passive.WolfEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.*;
-import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInputC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.util.Hand;
-import net.minecraft.util.PlayerInput;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameMode;
-
+import net.minecraft.network.protocol.game.ServerboundInteractPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.animal.wolf.Wolf;
+import net.minecraft.world.entity.monster.Enderman;
+import net.minecraft.world.entity.monster.zombie.ZombifiedPiglin;
+import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.MaceItem;
+import net.minecraft.world.item.TridentItem;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -155,45 +160,45 @@ public class FOKillAura extends Module {
         .name("实体类型")
         .description("要攻击的实体类型")
         .onlyAttackable()
-        .defaultValue(EntityType.PLAYER,
-            EntityType.BLAZE,              // 烈焰人
-            EntityType.HUSK,               // 尸壳
-            EntityType.CAVE_SPIDER,        // 洞穴蜘蛛
-            EntityType.CREEPER,            // 苦力怕
-            EntityType.DROWNED,            // 溺尸
-            EntityType.ELDER_GUARDIAN,     // 远古守卫者
-            EntityType.ENDER_DRAGON,       // 末影龙
-            EntityType.ENDERMAN,           // 末影人
-            EntityType.ENDERMITE,          // 末影螨
-            EntityType.EVOKER,             // 唤魔者
-            EntityType.GHAST,              // 恶魂
-            EntityType.GIANT,              // 巨人
-            EntityType.GUARDIAN,           // 守卫者
-            EntityType.HOGLIN,             // 疣猪兽
-            EntityType.ILLUSIONER,         // 幻术师
-            EntityType.MAGMA_CUBE,         // 岩浆怪
-            EntityType.PHANTOM,            // 幻翼
-            EntityType.PIGLIN,             // 猪灵
-            EntityType.PIGLIN_BRUTE,       // 猪灵蛮兵
-            EntityType.PILLAGER,           // 掠夺者
-            EntityType.RAVAGER,            // 劫掠兽
-            EntityType.SHULKER,            // 潜影贝
-            EntityType.SILVERFISH,         // 蠹虫
-            EntityType.SKELETON,           // 骷髅
-            EntityType.SLIME,              // 史莱姆
-            EntityType.SPIDER,             // 蜘蛛
-            EntityType.STRAY,              // 流浪者
-            EntityType.VEX,                // 恼鬼
-            EntityType.VINDICATOR,         // 卫道士
-            EntityType.WARDEN,             // 监察者
-            EntityType.WITCH,              // 女巫
-            EntityType.WITHER,             // 凋灵
-            EntityType.WITHER_SKELETON,    // 凋灵骷髅
-            EntityType.ZOMBIE,             // 僵尸
-            EntityType.ZOMBIFIED_PIGLIN,   // 僵尸猪灵
-            EntityType.ZOGLIN,             // 僵尸疣猪兽
-            EntityType.FIREBALL,           // 火球
-            EntityType.SHULKER_BULLET)
+        .defaultValue(EntityTypes.PLAYER,
+            EntityTypes.BLAZE,              // 烈焰人
+            EntityTypes.HUSK,               // 尸壳
+            EntityTypes.CAVE_SPIDER,        // 洞穴蜘蛛
+            EntityTypes.CREEPER,            // 苦力怕
+            EntityTypes.DROWNED,            // 溺尸
+            EntityTypes.ELDER_GUARDIAN,     // 远古守卫者
+            EntityTypes.ENDER_DRAGON,       // 末影龙
+            EntityTypes.ENDERMAN,           // 末影人
+            EntityTypes.ENDERMITE,          // 末影螨
+            EntityTypes.EVOKER,             // 唤魔者
+            EntityTypes.GHAST,              // 恶魂
+            EntityTypes.GIANT,              // 巨人
+            EntityTypes.GUARDIAN,           // 守卫者
+            EntityTypes.HOGLIN,             // 疣猪兽
+            EntityTypes.ILLUSIONER,         // 幻术师
+            EntityTypes.MAGMA_CUBE,         // 岩浆怪
+            EntityTypes.PHANTOM,            // 幻翼
+            EntityTypes.PIGLIN,             // 猪灵
+            EntityTypes.PIGLIN_BRUTE,       // 猪灵蛮兵
+            EntityTypes.PILLAGER,           // 掠夺者
+            EntityTypes.RAVAGER,            // 劫掠兽
+            EntityTypes.SHULKER,            // 潜影贝
+            EntityTypes.SILVERFISH,         // 蠹虫
+            EntityTypes.SKELETON,           // 骷髅
+            EntityTypes.SLIME,              // 史莱姆
+            EntityTypes.SPIDER,             // 蜘蛛
+            EntityTypes.STRAY,              // 流浪者
+            EntityTypes.VEX,                // 恼鬼
+            EntityTypes.VINDICATOR,         // 卫道士
+            EntityTypes.WARDEN,             // 监察者
+            EntityTypes.WITCH,              // 女巫
+            EntityTypes.WITHER,             // 凋灵
+            EntityTypes.WITHER_SKELETON,    // 凋灵骷髅
+            EntityTypes.ZOMBIE,             // 僵尸
+            EntityTypes.ZOMBIFIED_PIGLIN,   // 僵尸猪灵
+            EntityTypes.ZOGLIN,             // 僵尸疣猪兽
+            EntityTypes.FIREBALL,           // 火球
+            EntityTypes.SHULKER_BULLET)
         .build()
     );
 
@@ -344,21 +349,21 @@ public class FOKillAura extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (!mc.player.isAlive() || PlayerUtils.getGameMode() == GameMode.SPECTATOR) return;
-        if (pauseOnUse.get() && (mc.interactionManager.isBreakingBlock() || mc.player.isUsingItem())) return;
-        if (onlyOnClick.get() && !mc.options.attackKey.isPressed()) return;
+        if (!mc.player.isAlive() || PlayerUtils.getGameMode() == GameType.SPECTATOR) return;
+        if (pauseOnUse.get() && (mc.gameMode.isDestroying() || mc.player.isUsingItem())) return;
+        if (onlyOnClick.get() && !mc.options.keyAttack.isDown()) return;
         if (TickRate.INSTANCE.getTimeSinceLastTick() >= 1f && pauseOnLag.get()) return;
         if (pauseOnCA.get() && Modules.get().get(CrystalAura.class).isActive() && Modules.get().get(CrystalAura.class).kaTimer > 0)
             return;
 
         if (onlyOnLook.get()) {
-            Entity targeted = mc.targetedEntity;
+            Entity targeted = mc.crosshairPickEntity;
 
             if (targeted == null) return;
             if (!entityCheck(targeted)) return;
 
             targets.clear();
-            targets.add(mc.targetedEntity);
+            targets.add(mc.crosshairPickEntity);
         } else {
             targets.clear();
             TargetUtils.getList(targets, this::entityCheck, priority.get(), maxTargets.get());
@@ -379,12 +384,12 @@ public class FOKillAura extends Module {
 
         if (autoSwitch.get()) {
             Predicate<ItemStack> predicate = switch (weapon.get()) {
-                case Axe -> stack -> stack.getItem() instanceof AxeItem;
+                case Axe -> stack -> stack.is(ItemTags.AXES);
                 case Sword -> stack -> isSwordItem(stack.getItem());
                 case Mace -> stack -> stack.getItem() instanceof MaceItem;
                 case Trident -> stack -> stack.getItem() instanceof TridentItem;
                 case All ->
-                    stack -> stack.getItem() instanceof AxeItem || isSwordItem(stack.getItem()) || stack.getItem() instanceof MaceItem || stack.getItem() instanceof TridentItem;
+                    stack -> stack.is(ItemTags.AXES) || isSwordItem(stack.getItem()) || stack.getItem() instanceof MaceItem || stack.getItem() instanceof TridentItem;
                 default -> o -> true;
             };
             FindItemResult weaponResult = InvUtils.findInHotbar(predicate);
@@ -415,7 +420,7 @@ public class FOKillAura extends Module {
 
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
-        if (event.packet instanceof UpdateSelectedSlotC2SPacket) {
+        if (event.packet instanceof ServerboundSetCarriedItemPacket) {
             switchTimer = switchDelay.get();
         }
     }
@@ -435,13 +440,13 @@ public class FOKillAura extends Module {
 
     private boolean entityCheck(Entity entity) {
         if (entity.equals(mc.player)) return false;
-        if ((entity instanceof LivingEntity livingEntity && livingEntity.isDead()) || !entity.isAlive()) return false;
+        if ((entity instanceof LivingEntity livingEntity && livingEntity.isDeadOrDying()) || !entity.isAlive()) return false;
 
-        Box hitbox = entity.getBoundingBox();
+        AABB hitbox = entity.getBoundingBox();
         if (!PlayerUtils.isWithin(
-            MathHelper.clamp(mc.player.getX(), hitbox.minX, hitbox.maxX),
-            MathHelper.clamp(mc.player.getY(), hitbox.minY, hitbox.maxY),
-            MathHelper.clamp(mc.player.getZ(), hitbox.minZ, hitbox.maxZ),
+            Mth.clamp(mc.player.getX(), hitbox.minX, hitbox.maxX),
+            Mth.clamp(mc.player.getY(), hitbox.minY, hitbox.maxY),
+            Mth.clamp(mc.player.getZ(), hitbox.minZ, hitbox.maxZ),
             range.get()
         )) return false;
 
@@ -449,15 +454,15 @@ public class FOKillAura extends Module {
         if (ignoreNamed.get() && entity.hasCustomName()) return false;
         if (!PlayerUtils.canSeeEntity(entity) && !PlayerUtils.isWithin(entity, wallsRange.get())) return false;
         if (ignorePassive.get()) {
-            if (entity instanceof EndermanEntity enderman && !enderman.isAngry()) return false;
-            if (entity instanceof ZombifiedPiglinEntity piglin && !piglin.isAttacking()) return false;
-            if (entity instanceof WolfEntity wolf && !wolf.isAttacking()) return false;
+            if (entity instanceof Enderman enderman && !enderman.isCreepy()) return false;
+            if (entity instanceof ZombifiedPiglin piglin && !piglin.isAggressive()) return false;
+            if (entity instanceof Wolf wolf && !wolf.isAggressive()) return false;
         }
-        if (entity instanceof PlayerEntity player) {
+        if (entity instanceof Player player) {
             if (player.isCreative()) return false;
             if (!Friends.get().shouldAttack(player)) return false;
         }
-        if (entity instanceof AnimalEntity animal) {
+        if (entity instanceof Animal animal) {
             return switch (mobAgeFilter.get()) {
                 case Baby -> animal.isBaby();
                 case Adult -> !animal.isBaby();
@@ -484,26 +489,26 @@ public class FOKillAura extends Module {
                 return true;
             }
         } else {
-            return mc.player.getAttackCooldownProgress(delay) >= 1;
+            return mc.player.getAttackStrengthScale(delay) >= 1;
         }
     }
 
     private void attack(Entity target) {
         if (stopSprint.get()) {
-            if (mc.player.isSneaking()) {
+            if (mc.player.isShiftKeyDown()) {
                 sendReleaseShift();
             }
             if (mc.player.isSprinting()) {
-                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, ClientCommandC2SPacket.Mode.STOP_SPRINTING));
+                mc.getConnection().send(new ServerboundPlayerCommandPacket(mc.player, ServerboundPlayerCommandPacket.Action.STOP_SPRINTING));
             }
         }
 
-        Vec3d feetPos = target.getEntityPos();
+        Vec3 feetPos = target.position();
 
-        Vec3d torsoPos = feetPos.add(0.0, target.getHeight() / 2.0f, 0.0);
-        Vec3d eyesPos = target.getEyePos();
-        Vec3d hitVec = Stream.of(feetPos, torsoPos, eyesPos)
-            .min(Comparator.comparing(pos -> mc.player.getEyePos().squaredDistanceTo(pos)))
+        Vec3 torsoPos = feetPos.add(0.0, target.getBbHeight() / 2.0f, 0.0);
+        Vec3 eyesPos = target.getEyePosition();
+        Vec3 hitVec = Stream.of(feetPos, torsoPos, eyesPos)
+            .min(Comparator.comparing(pos -> mc.player.getEyePosition().distanceToSqr(pos)))
             .orElse(eyesPos);
 
         Rotation rotation = new Rotation(hitVec).setPriority(10);
@@ -515,11 +520,11 @@ public class FOKillAura extends Module {
         // 默认走正规 attackEntity（带选中槽位同步 + 客户端攻击逻辑），
         // 发包模式只发攻击包（不再夹带一次正规攻击）。
         if (packetAttack.get()) {
-            mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+            mc.getConnection().send(new ServerboundInteractPacket(target.getId(), InteractionHand.MAIN_HAND, Vec3.ZERO, mc.player.isShiftKeyDown()));
         } else {
-            mc.interactionManager.attackEntity(mc.player, target);
+            mc.gameMode.attack(mc.player, target);
         }
-        mc.player.swingHand(Hand.MAIN_HAND);
+        mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), false);
 
         hitTimer = 0;
         if (this.rotation.get() == RotationMode.OnHit) {
@@ -528,15 +533,15 @@ public class FOKillAura extends Module {
     }
 
     private boolean itemInHand() {
-        Item item = mc.player.getMainHandStack().getItem();
+        Item item = mc.player.getMainHandItem().getItem();
 
         return switch (weapon.get()) {
-            case Axe -> item instanceof AxeItem;
+            case Axe -> item.getDefaultInstance().is(ItemTags.AXES);
             case Sword -> isSwordItem(item);
             case Mace -> item instanceof MaceItem;
             case Trident -> item instanceof TridentItem;
             case All ->
-                item instanceof AxeItem || isSwordItem(item) || item instanceof MaceItem || item instanceof TridentItem;
+                item.getDefaultInstance().is(ItemTags.AXES) || isSwordItem(item) || item instanceof MaceItem || item instanceof TridentItem;
             default -> true;
         };
     }
@@ -555,8 +560,8 @@ public class FOKillAura extends Module {
 
     /** 停止潜行发包（移植自 meteor-miku Via.sendReleaseShift） */
     private void sendReleaseShift() {
-        PlayerInput playerInput = new PlayerInput(false, false, false, false, false, false, false);
-        mc.player.networkHandler.sendPacket(new PlayerInputC2SPacket(playerInput));
+        Input playerInput = new Input(false, false, false, false, false, false, false);
+        mc.player.connection.send(new ServerboundPlayerInputPacket(playerInput));
     }
 
     public Entity getTarget() {

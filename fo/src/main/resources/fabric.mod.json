@@ -12,7 +12,7 @@
   },
   "icon": "assets/template/icon.png",
   "environment": "client",
-  "accessWidener": "fo.accesswidener",
+  "accessWidener": "fo.classtweaker",
   "entrypoints": {
     "meteor": [
       "com.fo.addon.AddonTemplate"
@@ -29,6 +29,7 @@
   "depends": {
     "java": ">=${jdk_version}",
     "minecraft": "${minecraft_version}",
+    "fabricloader": ">=${loader_version}",
     "meteor-client": "*"
   }
 }

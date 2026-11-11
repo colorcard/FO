@@ -2,8 +2,7 @@ package com.fo.addon.utils;
 
 import meteordevelopment.meteorclient.settings.IVisible;
 import meteordevelopment.meteorclient.settings.Setting;
-import net.minecraft.nbt.NbtCompound;
-
+import net.minecraft.nbt.CompoundTag;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -59,8 +58,8 @@ public class EnchantLevelMapSetting extends Setting<Object2IntMap<String>> {
     }
 
     @Override
-    public NbtCompound save(NbtCompound tag) {
-        NbtCompound valueTag = new NbtCompound();
+    public CompoundTag save(CompoundTag tag) {
+        CompoundTag valueTag = new CompoundTag();
         for (Object2IntMap.Entry<String> e : get().object2IntEntrySet()) {
             if (e.getIntValue() > 0) valueTag.putInt(e.getKey(), e.getIntValue());
         }
@@ -69,13 +68,13 @@ public class EnchantLevelMapSetting extends Setting<Object2IntMap<String>> {
     }
 
     @Override
-    public Object2IntMap<String> load(NbtCompound tag) {
+    public Object2IntMap<String> load(CompoundTag tag) {
         get().clear();
-        NbtCompound valueTag = tag.getCompoundOrEmpty("value");
-        for (String key : valueTag.getKeys()) {
+        CompoundTag valueTag = tag.getCompoundOrEmpty("value");
+        for (String key : valueTag.keySet()) {
             // 只收 EnchantList 里认识的附魔，等级 > 0；旧档多余键静默丢弃
             if (EnchantList.findById(key) == null) continue;
-            int level = valueTag.getInt(key, 0);
+            int level = valueTag.getIntOr(key, 0);
             if (level > 0) get().put(key, level);
         }
         return get();

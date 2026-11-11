@@ -27,28 +27,25 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.block.entity.ShulkerBoxBlockEntity;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.gui.screen.ingame.ShulkerBoxScreen;
-import net.minecraft.entity.ItemEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import java.util.*;
 
 /**
@@ -256,11 +253,11 @@ public class AutoMineSand extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
         if (mc.player.isUsingItem()) return;
 
         // 开着潜影盒时跳过 delay，每 tick 都处理存取
-        boolean inShulker = mc.currentScreen instanceof ShulkerBoxScreen;
+        boolean inShulker = mc.gui.screen() instanceof ShulkerBoxScreen;
         // V4.19: INIT_SCAN/GOING_*/OPEN_* 状态跳过操作延迟——寻路到达、开盒重试必须
         // 立即响应（delay=5 时 40 tick 超时被放大成 10 秒，卡顿感来自这里）；
         // 只有 MINING 保留节流（挖沙发包本身不需要每 tick 决策）。
@@ -283,14 +280,14 @@ public class AutoMineSand extends Module {
 
     /** 收集附近所有潜影盒位置 */
     private void collectNearbyShulkers(java.util.List<BlockPos> out) {
-        BlockPos c = mc.player.getBlockPos();
+        BlockPos c = mc.player.blockPosition();
         int r = searchRadius.get();
         for (int x = -r; x <= r; x++)
             for (int y = -r; y <= r; y++)
                 for (int z = -r; z <= r; z++) {
-                    BlockPos p = c.add(x, y, z);
-                    if (mc.world.getBlockState(p).getBlock() instanceof ShulkerBoxBlock) {
-                        out.add(p.toImmutable());
+                    BlockPos p = c.offset(x, y, z);
+                    if (mc.level.getBlockState(p).getBlock() instanceof ShulkerBoxBlock) {
+                        out.add(p.immutable());
                     }
                 }
     }
@@ -298,21 +295,21 @@ public class AutoMineSand extends Module {
     /** INIT_SCAN：逐个打开附近潜影盒同步名字，开完后识别补给盒和存沙盒 */
     private void tickInitScan() {
         // 开着潜影盒 → 等3tick（V4.17，原10tick）让服务器同步潜影盒名字，然后立即关闭
-        if (mc.currentScreen instanceof ShulkerBoxScreen) {
+        if (mc.gui.screen() instanceof ShulkerBoxScreen) {
             shulkerWaitTimer++;
             if (shulkerWaitTimer >= 3) { // V4.17: 3tick足够服务器同步潜影盒数据（认名字不需要等0.5秒）
                 // V4.23: 顺手读盒内内容——含钻石/合金铲 → 记为内容指纹候选
                 //（服务器清掉盒子名字后，按内容兜底识别补给盒）
-                if (containsFingerprintShovel(mc.player.currentScreenHandler)) {
+                if (containsFingerprintShovel(mc.player.containerMenu)) {
                     if (initScanIndex < initScanBoxes.size()) {
-                        supplyLikeBoxes.add(initScanBoxes.get(initScanIndex).toImmutable());
+                        supplyLikeBoxes.add(initScanBoxes.get(initScanIndex).immutable());
                     }
                 }
                 closeScreen();
                 // V4.14: 记录"成功打开过=数据已同步"的盒子，存沙候选只从这里选，
                 // 防止扫描时被 SKIP 的盒子（名字未知，可能是补给盒）被误当存沙盒
                 if (initScanIndex < initScanBoxes.size()) {
-                    nameSyncedBoxes.add(initScanBoxes.get(initScanIndex).toImmutable());
+                    nameSyncedBoxes.add(initScanBoxes.get(initScanIndex).immutable());
                 }
                 initScanIndex++;
                 shulkerWaitTimer = 0;
@@ -349,9 +346,9 @@ public class AutoMineSand extends Module {
             initScanStandBox = box;
         }
         boolean atStand = initScanStand != null
-            ? mc.player.squaredDistanceTo(
+            ? mc.player.distanceToSqr(
                 initScanStand.getX() + 0.5, initScanStand.getY() + 0.5, initScanStand.getZ() + 0.5) <= 1.0
-            : mc.player.getBlockPos().isWithinDistance(box, 3); // 盒子悬空无站立点，退化原3格判定
+            : mc.player.blockPosition().closerThan(box, 3); // 盒子悬空无站立点，退化原3格判定
         switch (OpenBoxRetryLogic.decide(atStand, openFailCount, 3)) {
             case TRY_OPEN -> {
                 // 已站在盒子紧邻格 → 六面检测开盒（玩家正对的侧面，不会从下面开）
@@ -407,17 +404,17 @@ public class AutoMineSand extends Module {
 
     @EventHandler
     private void onRender(Render3DEvent event) {
-        if (!highlightBoxes.get() || mc.player == null || mc.world == null) return;
-        BlockPos c = mc.player.getBlockPos();
+        if (!highlightBoxes.get() || mc.player == null || mc.level == null) return;
+        BlockPos c = mc.player.blockPosition();
         int r = searchRadius.get();
         for (int x = -r; x <= r; x++)
             for (int y = -r; y <= r; y++)
                 for (int z = -r; z <= r; z++) {
-                    BlockPos p = c.add(x, y, z);
-                    BlockState s = mc.world.getBlockState(p);
+                    BlockPos p = c.offset(x, y, z);
+                    BlockState s = mc.level.getBlockState(p);
                     if (!(s.getBlock() instanceof ShulkerBoxBlock)) continue;
                     boolean isSupply = supplyBoxPos != null && p.equals(supplyBoxPos); // V4.24: 内容指纹识别的补给盒（名字丢失）也亮绿色
-                    if (!isSupply && mc.world.getBlockEntity(p) instanceof ShulkerBoxBlockEntity be) {
+                    if (!isSupply && mc.level.getBlockEntity(p) instanceof ShulkerBoxBlockEntity be) {
                         var n = be.getCustomName();
                         if (n != null && n.getString().contains(supplyBoxName.get())) {
                             isSupply = true;
@@ -436,11 +433,11 @@ public class AutoMineSand extends Module {
     private void tickMining() {
         // V4.25(A): 挖掘前自动切铲子到主手——手持不是铲子时，从背包/快捷栏找够耐久的铲子切到选中槽。
         // 不依赖补给流程的落点：任何来源的铲子都自动上手（AutoTree 同款 InvUtils.swap 用法）。
-        if (!SHOVELS.contains(mc.player.getMainHandStack().getItem())) {
+        if (!SHOVELS.contains(mc.player.getMainHandItem().getItem())) {
             FindItemResult r = InvUtils.find(itemStack ->
                 SHOVELS.contains(itemStack.getItem()) &&
-                (!itemStack.isDamageable() ||
-                    (itemStack.getMaxDamage() - itemStack.getDamage()) > shovelMinDurability.get()));
+                (!itemStack.isDamageableItem() ||
+                    (itemStack.getMaxDamage() - itemStack.getDamageValue()) > shovelMinDurability.get()));
             if (r.found()) InvUtils.swap(r.slot(), false);
         }
         // V4.23: 触发时锁定本次补给任务（一次补给流程只做一件事，补完关盒回挖矿）
@@ -494,31 +491,31 @@ public class AutoMineSand extends Module {
             }
 
             // 朝向目标方块（SlimefunHelper: Direction.getFacing(shouldFacing).getOpposite()）
-            Vec3d shouldFacing = nukerTarget.toCenterPos().subtract(mc.player.getEyePos());
-            Direction dir = Direction.getFacing(shouldFacing).getOpposite();
+            Vec3 shouldFacing = Vec3.atCenterOf(nukerTarget).subtract(mc.player.getEyePosition());
+            Direction dir = Direction.getApproximateNearest(shouldFacing).getOpposite();
 
             // 自动转头（可选项，默认关 = SlimefunHelper NO_BYPASS 防踢）
             if (nukerRotate.get()) {
-                Vec3d targetCenter = Vec3d.ofCenter(nukerTarget);
-                Vec3d eye = mc.player.getEyePos();
+                Vec3 targetCenter = Vec3.atCenterOf(nukerTarget);
+                Vec3 eye = mc.player.getEyePosition();
                 double dx = targetCenter.x - eye.x;
                 double dy = targetCenter.y - eye.y;
                 double dz = targetCenter.z - eye.z;
                 double distXZ = Math.sqrt(dx * dx + dz * dz);
                 float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
                 float pitch = (float) -Math.toDegrees(Math.atan2(dy, distXZ));
-                mc.player.setYaw(yaw);
-                mc.player.setPitch(pitch);
+                mc.player.setYRot(yaw);
+                mc.player.setXRot(pitch);
             }
 
             // 发包（冷却已被 onBlockBreakingCooldown 清零，等价 SlimefunHelper setMiningCooldown(0)）
-            mc.interactionManager.updateBlockBreakingProgress(nukerTarget, dir);
+            mc.gameMode.continueDestroyBlock(nukerTarget, dir);
 
             // 非瞬时破坏：只发一次 START，交给原版逐步挖
             if (!isInstantBreak(nukerTarget)) break;
 
             tryMine++;
-        } while (!mc.interactionManager.isBreakingBlock() && tryMine < nukerMaxInstaMine.get());
+        } while (!mc.gameMode.isDestroying() && tryMine < nukerMaxInstaMine.get());
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -528,20 +525,20 @@ public class AutoMineSand extends Module {
 
     /** SlimefunHelper checkDistanceAndCondition：距离内 + 是沙（跳过 double-break 检查） */
     private boolean checkMineCondition(BlockPos pos) {
-        return isWithinReach(pos) && isSand(mc.world.getBlockState(pos).getBlock());
+        return isWithinReach(pos) && isSand(mc.level.getBlockState(pos).getBlock());
     }
 
     /** SlimefunHelper findNextMinePosSpherical：球型范围（偏移表按距离升序）找最近合法沙块 */
     private BlockPos findNextMinePosSpherical() {
         int range = nukerRange.get();
         ensureNukerOffsets(range);
-        BlockPos center = mc.player.getSteppingPos().add(0, 1, 0);
+        BlockPos center = mc.player.getOnPos().offset(0, 1, 0);
         int lowest = nukerMinDy.get();
         int highest = nukerMaxDy.get();
         for (int[] v : nukerOffsets) {
             int y = v[1];
             if (y < lowest || y > highest) continue;
-            BlockPos p = center.add(v[0], y, v[2]);
+            BlockPos p = center.offset(v[0], y, v[2]);
             if (checkMineCondition(p)) return p;
         }
         return null;
@@ -556,14 +553,14 @@ public class AutoMineSand extends Module {
 
     /** 是否一 tick 内能挖完（瞬时破坏，SlimefunHelper shouldTreatAsInstantBreak: delta >= 1.0） */
     private boolean isInstantBreak(BlockPos pos) {
-        return mc.world.getBlockState(pos).calcBlockBreakingDelta(mc.player, mc.world, pos) >= 1.0F;
+        return mc.level.getBlockState(pos).getDestroyProgress(mc.player, mc.level, pos) >= 1.0F;
     }
 
     /** 检查方块是否在原版 reach 范围内（从眼睛算） */
     private boolean isWithinReach(BlockPos pos) {
-        Vec3d eye = mc.player.getEyePos();
-        double reach = mc.player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.BLOCK_INTERACTION_RANGE);
-        return eye.squaredDistanceTo(Vec3d.ofCenter(pos)) <= reach * reach;
+        Vec3 eye = mc.player.getEyePosition();
+        double reach = mc.player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE);
+        return eye.distanceToSqr(Vec3.atCenterOf(pos)) <= reach * reach;
     }
 
     private boolean isSand(Block b) {
@@ -579,24 +576,24 @@ public class AutoMineSand extends Module {
     /** 搜索半径内是否有沙子掉落物 */
     private boolean hasSandDropsInRadius() {
         int r = searchRadius.get();
-        Box box = mc.player.getBoundingBox().expand(r);
-        return !mc.world.getEntitiesByClass(ItemEntity.class, box, e -> isSandItem(e.getStack())).isEmpty();
+        AABB box = mc.player.getBoundingBox().inflate(r);
+        return !mc.level.getEntitiesOfClass(ItemEntity.class, box, e -> isSandItem(e.getItem())).isEmpty();
     }
 
     /** 在原版 reach(4.5格) 内找沙块 */
     private BlockPos findReachableSand() {
-        Vec3d eye = mc.player.getEyePos();
-        double reach = mc.player.getAttributeValue(net.minecraft.entity.attribute.EntityAttributes.BLOCK_INTERACTION_RANGE);
-        BlockPos c = mc.player.getBlockPos();
+        Vec3 eye = mc.player.getEyePosition();
+        double reach = mc.player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.BLOCK_INTERACTION_RANGE);
+        BlockPos c = mc.player.blockPosition();
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
         for (int x = -4; x <= 4; x++)
             for (int y = -4; y <= 4; y++)
                 for (int z = -4; z <= 4; z++) {
-                    BlockPos p = c.add(x, y, z);
-                    BlockState s = mc.world.getBlockState(p);
+                    BlockPos p = c.offset(x, y, z);
+                    BlockState s = mc.level.getBlockState(p);
                     if (!isSand(s.getBlock())) continue;
-                    double dist = eye.squaredDistanceTo(Vec3d.ofCenter(p));
+                    double dist = eye.distanceToSqr(Vec3.atCenterOf(p));
                     if (dist <= reach * reach && dist < bestDist) {
                         bestDist = dist;
                         best = p;
@@ -607,15 +604,15 @@ public class AutoMineSand extends Module {
 
     /** 在大范围内找最近沙块（用于 Baritone 走过去） */
     private BlockPos findNearestSand(int radius) {
-        BlockPos c = mc.player.getBlockPos();
+        BlockPos c = mc.player.blockPosition();
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
         for (int x = -radius; x <= radius; x++)
             for (int y = -radius; y <= radius; y++)
                 for (int z = -radius; z <= radius; z++) {
-                    BlockPos p = c.add(x, y, z);
-                    if (isSand(mc.world.getBlockState(p).getBlock())) {
-                        double d = c.getSquaredDistance(p);
+                    BlockPos p = c.offset(x, y, z);
+                    if (isSand(mc.level.getBlockState(p).getBlock())) {
+                        double d = c.distSqr(p);
                         if (d < bestDist) { bestDist = d; best = p; }
                     }
                 }
@@ -645,15 +642,15 @@ public class AutoMineSand extends Module {
         if (supply == null) { state = State.MINING; return; }
         // V4.19: 到达判定 = 玩家中心在站立点格 1 格内（紧贴盒子旁），不再用"盒子 3 格"——
         // 3 格判定让玩家停在盒子 2-3 格处够不到开盒，陷入抬头重试循环。
-        if (supplyGoal == null || mc.player.getBlockPos().getSquaredDistance(supplyGoal) > 6 * 6) {
+        if (supplyGoal == null || mc.player.blockPosition().distSqr(supplyGoal) > 6 * 6) {
             // 站立点失效（到达过/被破坏/离太远）时重新计算，保证目标始终带 Y
             supplyGoal = findStandSpot(supply);
             supplyGoalIgnoreY = supplyGoal == null;
         }
         boolean atStand = supplyGoal != null
-            ? mc.player.squaredDistanceTo(
+            ? mc.player.distanceToSqr(
                 supplyGoal.getX() + 0.5, supplyGoal.getY() + 0.5, supplyGoal.getZ() + 0.5) <= 1.0
-            : mc.player.getBlockPos().isWithinDistance(supply, 3); // 盒子浮空无站立点，退化3格判定
+            : mc.player.blockPosition().closerThan(supply, 3); // 盒子浮空无站立点，退化3格判定
         if (atStand) {
             PathManagers.get().stop();
             state = State.OPEN_SUPPLY;
@@ -677,7 +674,7 @@ public class AutoMineSand extends Module {
         //（回 MINING 会因补给条件未满足立刻再触发 goToSupply→重新指路→转头，形成自转死循环）。
         // V4.19: 补给盒打不开连续 5 次（failLimit=5）直接报错停模块——
         // 旧 failLimit=1000000 意味着永远循环"转头→等→转头"，打不开就不停。
-        boolean screenOpen = mc.currentScreen instanceof ShulkerBoxScreen;
+        boolean screenOpen = mc.gui.screen() instanceof ShulkerBoxScreen;
         if (screenOpen) storeTickCounter++; else shulkerWaitTimer++;
         switch (StoreOpenLogic.decide(screenOpen, storeTickCounter, 3,
                 waitingShulkerOpen, shulkerWaitTimer, 40, openRetryCount, 5)) {
@@ -701,7 +698,7 @@ public class AutoMineSand extends Module {
     }
 
     private void doSupply() {
-        ScreenHandler handler = mc.player.currentScreenHandler;
+        AbstractContainerMenu handler = mc.player.containerMenu;
         // 等上次点击的槽位同步完（等槽变空 = 物品移动完成）
         if (supplyStuckSlot >= 0) {
             // V4.26: 回写等待超时保护（60 tick ≈ 3 秒）——异常时不再无限等待卡死
@@ -712,7 +709,7 @@ public class AutoMineSand extends Module {
                 return;
             }
             int checkSlot = supplyStuckSlot;
-            ItemStack s = handler.getSlot(checkSlot).getStack();
+            ItemStack s = handler.getSlot(checkSlot).getItem();
             if (supplyJob == SupplyJob.SHOVEL) {
                 // === V4.29: 先放旧铲回盒(1) → 拿新铲(2) → 关盒完成（切主手交给 A=tickMining 自动切手） ===
                 if (supplyPhase == 1 || supplyPhase == 2) {
@@ -829,13 +826,13 @@ public class AutoMineSand extends Module {
     }
 
     /** 在玩家背包(界面槽位27-62)找没耐久的铲子，返回界面槽位 */
-    private int findWornOutShovelInPlayer(ScreenHandler handler) {
+    private int findWornOutShovelInPlayer(AbstractContainerMenu handler) {
         int rows = 3;
         for (int s = rows * 9; s <= rows * 9 + 35; s++) {
             if (s >= handler.slots.size()) break;
-            ItemStack stack = handler.getSlot(s).getStack();
+            ItemStack stack = handler.getSlot(s).getItem();
             if (!stack.isEmpty() && SHOVELS.contains(stack.getItem())) {
-                if (stack.isDamageable() && (stack.getMaxDamage() - stack.getDamage()) <= shovelMinDurability.get()) {
+                if (stack.isDamageableItem() && (stack.getMaxDamage() - stack.getDamageValue()) <= shovelMinDurability.get()) {
                     return s;
                 }
             }
@@ -844,10 +841,10 @@ public class AutoMineSand extends Module {
     }
 
     /** V4.28: 补给盒（界面槽位0-26）是否有空位——放回旧铲前检查，没位置直接报错停 */
-    private boolean hasEmptyShulkerSlot(ScreenHandler handler) {
+    private boolean hasEmptyShulkerSlot(AbstractContainerMenu handler) {
         for (int i = 0; i < 27; i++) {
             if (i >= handler.slots.size()) break;
-            if (handler.getSlot(i).getStack().isEmpty()) return true;
+            if (handler.getSlot(i).getItem().isEmpty()) return true;
         }
         return false;
     }
@@ -878,15 +875,15 @@ public class AutoMineSand extends Module {
         if (storeBoxPos == null) { state = State.MINING; return; }
         // V4.19: 到达判定 = 玩家中心在站立点格 1 格内（紧贴盒子旁），不再用"盒子 3 格"——
         // 3 格判定让玩家停在盒子 2-3 格处够不到开盒，陷入抬头重试循环。
-        if (storeGoal == null || mc.player.getBlockPos().getSquaredDistance(storeGoal) > 6 * 6) {
+        if (storeGoal == null || mc.player.blockPosition().distSqr(storeGoal) > 6 * 6) {
             // 站立点失效（到达过/被破坏/离太远）时重新计算，保证目标始终带 Y
             storeGoal = findStandSpot(storeBoxPos);
             storeGoalIgnoreY = storeGoal == null;
         }
         boolean atStand = storeGoal != null
-            ? mc.player.squaredDistanceTo(
+            ? mc.player.distanceToSqr(
                 storeGoal.getX() + 0.5, storeGoal.getY() + 0.5, storeGoal.getZ() + 0.5) <= 1.0
-            : mc.player.getBlockPos().isWithinDistance(storeBoxPos, 3); // 盒子浮空无站立点，退化3格判定
+            : mc.player.blockPosition().closerThan(storeBoxPos, 3); // 盒子浮空无站立点，退化3格判定
         if (atStand) {
             PathManagers.get().stop();
             state = State.OPEN_STORE;
@@ -910,7 +907,7 @@ public class AutoMineSand extends Module {
         // 修复存沙侧"超时回挖矿 → 背包仍满 → goToStore → 重新指路转头 → 再失败"的自转死循环。
         // 与补给侧区别：存沙盒可换，failLimit 用有限值（3），连续失败到顶标记该盒
         // 打不开（unopenableBoxes）→ 换下一个存沙盒，而不是无脑回挖矿。
-        boolean screenOpen = mc.currentScreen instanceof ShulkerBoxScreen;
+        boolean screenOpen = mc.gui.screen() instanceof ShulkerBoxScreen;
         if (screenOpen) storeTickCounter++; else shulkerWaitTimer++;
         switch (StoreOpenLogic.decide(screenOpen, storeTickCounter, 3,
                 waitingShulkerOpen, shulkerWaitTimer, 40, openRetryCount, 3)) {
@@ -924,7 +921,7 @@ public class AutoMineSand extends Module {
             }
             case GIVE_UP -> {
                 // 连续开盒失败：标记该盒打不开，换下一个存沙盒
-                if (storeBoxPos != null) unopenableBoxes.add(storeBoxPos.toImmutable());
+                if (storeBoxPos != null) unopenableBoxes.add(storeBoxPos.immutable());
                 info("存沙盒打不开，换下一个");
                 closeScreen();
                 goToStore();
@@ -933,7 +930,7 @@ public class AutoMineSand extends Module {
     }
 
     private void doStore() {
-        ScreenHandler sh = mc.player.currentScreenHandler;
+        AbstractContainerMenu sh = mc.player.containerMenu;
         if (sh == null) return;
         int rows = 3; // 潜影盒固定 3 行
         int playerFirst = rows * 9;   // 27
@@ -941,11 +938,11 @@ public class AutoMineSand extends Module {
 
         // 兜底卡住检测：服务器拒绝 QUICK_MOVE 时槽位回写仍有沙（同步判满漏掉的服务端真相）
         if (storeStuckSlot >= playerFirst && storeStuckSlot <= playerLast) {
-            ItemStack s = sh.getSlot(storeStuckSlot).getStack();
+            ItemStack s = sh.getSlot(storeStuckSlot).getItem();
             if (!s.isEmpty() && isSandItem(s)) {
                 storeStuckTicks++;
                 if (storeStuckTicks > 20) {
-                    if (storeBoxPos != null) fullStoreBoxes.add(storeBoxPos.toImmutable());
+                    if (storeBoxPos != null) fullStoreBoxes.add(storeBoxPos.immutable());
                     info("存沙盒已满，寻找下一个");
                     storeStuckSlot = -1;
                     storeStuckTicks = 0;
@@ -967,12 +964,12 @@ public class AutoMineSand extends Module {
         // 只搬沙（isSandItem 过滤），杜绝 miku 把其他物品也存进去的 bug。
         int moved = 0;
         for (int s = playerFirst; s <= playerLast && moved < 1; s++) {
-            ItemStack stack = sh.getSlot(s).getStack();
+            ItemStack stack = sh.getSlot(s).getItem();
             if (stack.isEmpty() || !isSandItem(stack)) continue;
             if (stack.getCount() < 64) continue; // V4.23: 不满一组不存——零头沙留在背包，挖沙时自动合并攒满一组再存
             if (StoreSlotLogic.findSandTargetSlot(boxCounts(sh), boxIsSand(sh), 64, stack.getCount()) == -1) {
                 // 盒子对沙已满：立即换盒（旧逻辑要白等 20 tick）
-                if (storeBoxPos != null) fullStoreBoxes.add(storeBoxPos.toImmutable());
+                if (storeBoxPos != null) fullStoreBoxes.add(storeBoxPos.immutable());
                 info("存沙盒已满，寻找下一个");
                 storeStuckSlot = -1;
                 storeStuckTicks = 0;
@@ -995,48 +992,48 @@ public class AutoMineSand extends Module {
     }
 
     /** 盒槽快照：前 27 槽的数量 */
-    private int[] boxCounts(ScreenHandler sh) {
+    private int[] boxCounts(AbstractContainerMenu sh) {
         int[] c = new int[27];
-        for (int i = 0; i < 27 && i < sh.slots.size(); i++) c[i] = sh.getSlot(i).getStack().getCount();
+        for (int i = 0; i < 27 && i < sh.slots.size(); i++) c[i] = sh.getSlot(i).getItem().getCount();
         return c;
     }
 
     /** 盒槽快照：前 27 槽是否沙 */
-    private boolean[] boxIsSand(ScreenHandler sh) {
+    private boolean[] boxIsSand(AbstractContainerMenu sh) {
         boolean[] b = new boolean[27];
-        for (int i = 0; i < 27 && i < sh.slots.size(); i++) b[i] = isSandItem(sh.getSlot(i).getStack());
+        for (int i = 0; i < 27 && i < sh.slots.size(); i++) b[i] = isSandItem(sh.getSlot(i).getItem());
         return b;
     }
 
     private boolean needNewShovel() {
         FindItemResult r = InvUtils.find(itemStack -> SHOVELS.contains(itemStack.getItem()));
         if (!r.found()) return true;
-        ItemStack s = mc.player.getInventory().getStack(r.slot());
-        if (!s.isDamageable()) return false;
-        return (s.getMaxDamage() - s.getDamage()) <= shovelMinDurability.get();
+        ItemStack s = mc.player.getInventory().getItem(r.slot());
+        if (!s.isDamageableItem()) return false;
+        return (s.getMaxDamage() - s.getDamageValue()) <= shovelMinDurability.get();
     }
 
     /** V4.23: 所选补给食物种类对应的 Item（FoodType.itemId → 注册表） */
     private Item foodItem() {
-        return Registries.ITEM.get(Identifier.tryParse(foodType.get().itemId));
+        return BuiltInRegistries.ITEM.getValue(Identifier.tryParse(foodType.get().itemId));
     }
 
     /** V4.23: 背包所选食物的总量 */
     private int foodCount(Item item) {
         int c = 0;
         for (int i = 0; i < 36; i++) {
-            ItemStack s = mc.player.getInventory().getStack(i);
+            ItemStack s = mc.player.getInventory().getItem(i);
             if (s.getItem() == item) c += s.getCount();
         }
         return c;
     }
 
     /** V4.23: 盒内是否含钻石/合金铲（补给盒内容指纹，SupplyFingerprintLogic 定义硬性标准） */
-    private boolean containsFingerprintShovel(ScreenHandler sh) {
+    private boolean containsFingerprintShovel(AbstractContainerMenu sh) {
         for (int i = 0; i < 27 && i < sh.slots.size(); i++) {
-            ItemStack s = sh.getSlot(i).getStack();
+            ItemStack s = sh.getSlot(i).getItem();
             if (s.isEmpty()) continue;
-            String id = Registries.ITEM.getId(s.getItem()).toString();
+            String id = BuiltInRegistries.ITEM.getKey(s.getItem()).toString();
             if (SupplyFingerprintLogic.FINGERPRINT_SHOVEL_IDS.contains(id)) return true;
         }
         return false;
@@ -1044,13 +1041,13 @@ public class AutoMineSand extends Module {
 
     /** V4.23: 内容指纹候选里选三维最近者（名字丢失时兜底识别补给盒） */
     private BlockPos findNearestSupplyLikeBox() {
-        BlockPos c = mc.player.getBlockPos();
+        BlockPos c = mc.player.blockPosition();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (BlockPos p : supplyLikeBoxes) {
             if (unopenableBoxes.contains(p)) continue;
-            if (!(mc.world.getBlockState(p).getBlock() instanceof ShulkerBoxBlock)) continue;
-            double d = c.getSquaredDistance(p);
+            if (!(mc.level.getBlockState(p).getBlock() instanceof ShulkerBoxBlock)) continue;
+            double d = c.distSqr(p);
             if (d < bestD) { bestD = d; best = p; }
         }
         return best;
@@ -1059,7 +1056,7 @@ public class AutoMineSand extends Module {
     private int totemCount() {
         int c = 0;
         for (int i = 0; i < 36; i++) {
-            ItemStack s = mc.player.getInventory().getStack(i);
+            ItemStack s = mc.player.getInventory().getItem(i);
             if (s.getItem() == Items.TOTEM_OF_UNDYING) c += s.getCount();
         }
         return c;
@@ -1068,7 +1065,7 @@ public class AutoMineSand extends Module {
     private int emptySlots() {
         int c = 0;
         for (int i = 9; i < 36; i++) {
-            if (mc.player.getInventory().getStack(i).isEmpty()) c++;
+            if (mc.player.getInventory().getItem(i).isEmpty()) c++;
         }
         return c;
     }
@@ -1076,22 +1073,22 @@ public class AutoMineSand extends Module {
     /** V4.23: 背包是否存在整组沙（count ≥ 64）。存沙触发条件之一——只有零头沙不开盒（防死循环） */
     private boolean hasFullSandStack() {
         for (int i = 9; i < 36; i++) {
-            ItemStack s = mc.player.getInventory().getStack(i);
+            ItemStack s = mc.player.getInventory().getItem(i);
             if (!s.isEmpty() && isSandItem(s) && s.getCount() >= 64) return true;
         }
         return false;
     }
 
     private BlockPos findNamedShulker(String nameContains) {
-        BlockPos c = mc.player.getBlockPos();
+        BlockPos c = mc.player.blockPosition();
         int r = searchRadius.get();
         for (int x = -r; x <= r; x++)
             for (int y = -r; y <= r; y++)
                 for (int z = -r; z <= r; z++) {
-                    BlockPos p = c.add(x, y, z);
-                    BlockState s = mc.world.getBlockState(p);
+                    BlockPos p = c.offset(x, y, z);
+                    BlockState s = mc.level.getBlockState(p);
                     if (s.getBlock() instanceof ShulkerBoxBlock &&
-                        mc.world.getBlockEntity(p) instanceof ShulkerBoxBlockEntity be) {
+                        mc.level.getBlockEntity(p) instanceof ShulkerBoxBlockEntity be) {
                         var n = be.getCustomName();
                         if (n != null && n.getString().contains(nameContains)) return p;
                     }
@@ -1106,17 +1103,17 @@ public class AutoMineSand extends Module {
      * 最近选择委托 NearestBoxLogic.select（纯逻辑，已有单测）。
      */
     private BlockPos findNearestStoreBox() {
-        BlockPos c = mc.player.getBlockPos();
+        BlockPos c = mc.player.blockPosition();
         java.util.List<int[]> candidates = new java.util.ArrayList<>();
         java.util.List<BlockPos> boxes = new java.util.ArrayList<>();
         for (BlockPos p : nameSyncedBoxes) {
             if (fullStoreBoxes.contains(p) || unopenableBoxes.contains(p)) continue;
             // V4.23: 内容指纹识别的补给盒（名字被服务器清掉）也要排除——否则沙会存进补给盒
             if (supplyBoxPos != null && p.equals(supplyBoxPos)) continue;
-            BlockState s = mc.world.getBlockState(p);
+            BlockState s = mc.level.getBlockState(p);
             if (!(s.getBlock() instanceof ShulkerBoxBlock)) continue;
             boolean supply = false;
-            if (mc.world.getBlockEntity(p) instanceof ShulkerBoxBlockEntity be) {
+            if (mc.level.getBlockEntity(p) instanceof ShulkerBoxBlockEntity be) {
                 var n = be.getCustomName();
                 if (n != null && n.getString().contains(supplyBoxName.get())) supply = true;
             }
@@ -1128,39 +1125,39 @@ public class AutoMineSand extends Module {
         return idx == -1 ? null : boxes.get(idx);
     }
 
-    private int findShulkerItem(ScreenHandler handler, List<Item> items, int minDurability) {
+    private int findShulkerItem(AbstractContainerMenu handler, List<Item> items, int minDurability) {
         for (int i = 0; i < 27; i++) {
             if (i >= handler.slots.size()) break;
-            ItemStack s = handler.getSlot(i).getStack();
+            ItemStack s = handler.getSlot(i).getItem();
             if (s.isEmpty()) continue;
             if (items.contains(s.getItem())) {
-                if (!s.isDamageable() || (s.getMaxDamage() - s.getDamage()) > minDurability) return i;
+                if (!s.isDamageableItem() || (s.getMaxDamage() - s.getDamageValue()) > minDurability) return i;
             }
         }
         return -1;
     }
 
-    private int findShulkerItemExact(ScreenHandler handler, Item item) {
+    private int findShulkerItemExact(AbstractContainerMenu handler, Item item) {
         for (int i = 0; i < 27; i++) {
             if (i >= handler.slots.size()) break;
-            ItemStack s = handler.getSlot(i).getStack();
+            ItemStack s = handler.getSlot(i).getItem();
             if (!s.isEmpty() && s.getItem() == item) return i;
         }
         return -1;
     }
 
     private void quickMove(int slot) {
-        mc.interactionManager.clickSlot(
-            mc.player.currentScreenHandler.syncId, slot, 0,
-            SlotActionType.QUICK_MOVE, mc.player);
+        mc.gameMode.handleContainerInput(
+            mc.player.containerMenu.containerId, slot, 0,
+            ContainerInput.QUICK_MOVE, mc.player);
     }
 
     private void openShulker(BlockPos pos) {
-        if (!mc.player.getBlockPos().isWithinDistance(pos, 5)) return;
+        if (!mc.player.blockPosition().closerThan(pos, 5)) return;
         // V4.16: 六面检测——按玩家眼睛相对盒子的位置选玩家正对的那个面交互
         // （不再固定 UP：盒子顶面被其他方块盖住、或玩家站在盒子侧面/下方时，
         // 固定 UP 的交互会被服务器按视线回溯拒绝，盒子永远打不开）。
-        Vec3d eye = mc.player.getEyePos();
+        Vec3 eye = mc.player.getEyePosition();
         Direction face = faceById(FacingLogic.bestFaceIndex(
             eye.x, eye.y, eye.z, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5));
         // 统一转头模式（Ying/SlimefunHelper）：存视角→转头+发包→交互→恢复视角
@@ -1168,7 +1165,7 @@ public class AutoMineSand extends Module {
     }
 
     private void closeScreen() {
-        if (mc.currentScreen instanceof HandledScreen) mc.player.closeHandledScreen();
+        if (mc.gui.screen() instanceof AbstractContainerScreen) mc.player.closeContainer();
     }
 
     /** 面 ID（FacingLogic.bestFaceIndex 返回值，与 Direction.ID 顺序一致）→ Direction */
@@ -1200,17 +1197,17 @@ public class AutoMineSand extends Module {
 
     /** 从候选里选"空气格 + 下方实心 + 距玩家最近"的站立点（世界条件过滤） */
     private BlockPos pickStandSpot(BlockPos box, java.util.List<int[]> cands) {
-        BlockPos.Mutable m = new BlockPos.Mutable();
+        BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (int[] c : cands) {
             m.set(c[0], c[1], c[2]);
-            if (!mc.world.getBlockState(m).isReplaceable()) continue;
-            if (!mc.world.getBlockState(m.down()).isSolidBlock(mc.world, m.down())) continue;
-            double d = mc.player.squaredDistanceTo(c[0] + 0.5, c[1] + 0.5, c[2] + 0.5);
+            if (!mc.level.getBlockState(m).canBeReplaced()) continue;
+            if (!mc.level.getBlockState(m.below()).isRedstoneConductor(mc.level, m.below())) continue;
+            double d = mc.player.distanceToSqr(c[0] + 0.5, c[1] + 0.5, c[2] + 0.5);
             if (d < bestD) {
                 bestD = d;
-                best = m.toImmutable();
+                best = m.immutable();
             }
         }
         return best;

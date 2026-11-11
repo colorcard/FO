@@ -1,26 +1,25 @@
 [versions]
 # 版本号一律不带 V 前缀（V6.25 之前的写法已废弃，见 AGENTS.md「命名规范」）。
-# 构建产物名 = FO-<mod-version>-<minecraft>，如 6.25 + 1.21.11 -> FO-6.25-1.21.11.jar
+# 构建产物名 = FO-<mod-version>-<minecraft>，如 6.6 + 26.3 -> FO-6.6-26.3.jar
 mod-version = "6.7p36"
 
-# Fabric (https://fabricmc.net/develop)
-jdk = "21"
-minecraft = "1.21.11"
-yarn = "1.21.11+build.3"
-fabric-loader = "0.18.2"
+# Fabric / Minecraft 26.3（26.1 起游戏不再混淆，直接使用官方名字，无需 mappings）
+jdk = "25"
+minecraft = "26.3"
+fabric-loader = "0.19.5"
 
 # Loom (https://github.com/FabricMC/fabric-loom)
-loom = "1.15.5"
+loom = "1.18.4"
 
 # Meteor (https://github.com/MeteorDevelopment/meteor-client/)
-meteor = "1.21.11-SNAPSHOT"
+# 固定到构建此版本时的 26.3 快照，避免 SNAPSHOT 漂移导致构建不可复现。
+meteor = "26.3-20261111.135322-18"
 
 # Mods
 
 [libraries]
 # Fabric base
 minecraft = { module = "com.mojang:minecraft", version.ref = "minecraft" }
-yarn = { module = "net.fabricmc:yarn", version.ref = "yarn" }
 fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-loader" }
 
 # Meteor client

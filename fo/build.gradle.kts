@@ -1,12 +1,12 @@
 plugins {
-    id("fabric-loom") version "1.15.5"
+    alias(libs.plugins.fabric.loom)
 }
 
 val archivesBaseName = providers.gradleProperty("archives_base_name").get()
 val mavenGroup = providers.gradleProperty("maven_group").get()
 
 // 命名准则（见 AGENTS.md「命名规范」）：
-//   构建产物名 = FO-<mod版本>-<MC版本>.jar，例如 FO-6.25-1.21.11.jar
+//   构建产物名 = FO-<mod版本>-<MC版本>.jar，例如 FO-6.6-26.3.jar
 //   mod 版本号不带 V 前缀；MC 版本随 libs.versions.toml 的 minecraft 自动跟随，升 MC 不用改两处。
 val modVersion = libs.versions.mod.version.get()
 val minecraftVersion = libs.versions.minecraft.get()
@@ -18,7 +18,7 @@ base {
 }
 
 loom {
-    accessWidenerPath = file("src/main/resources/fo.accesswidener")
+    accessWidenerPath = file("src/main/resources/fo.classtweaker")
 }
 
 repositories {
@@ -41,20 +41,16 @@ repositories {
 val extraLibs: Configuration by configurations.creating
 
 dependencies {
-    // Fabric
-    minecraft("com.mojang:minecraft:1.21.11")
-    mappings("net.fabricmc:yarn:1.21.11+build.3:v2")
-    modImplementation("net.fabricmc:fabric-loader:0.18.2")
+    // Fabric / Minecraft 26.3
+    minecraft(libs.minecraft)
+    implementation(libs.fabric.loader)
+    // 26.3 的 ServerLevel.overworld() 签名涉及 Fabric 资源 API；运行环境也已安装 Fabric API。
+    implementation("net.fabricmc.fabric-api:fabric-api:0.162.0+26.3")
 
-    // Meteor (modImplementation 让 loom remap 到 yarn 命名空间)
-    modImplementation("meteordevelopment:meteor-client:1.21.11-SNAPSHOT")
+    // Meteor（26.3 的 Meteor 直接使用官方名字，无需 remap）
+    implementation(libs.meteor.client)
 
-    // Baritone API（icehack-2 鞘翅套件编译期依赖；modCompileOnly 让 loom remap 到 yarn 命名空间，运行时由 baritone mod 提供）
-    modCompileOnly(files("libs/baritone-api-fabric-1.21.11-SNAPSHOT.jar"))
-
-    // V6.8 起古城模块已全程自写（纯 Java），不再打包 libs/fo-ancient-blackbox.jar。
-    // 该黑盒里的 657 个类已被 ancient/ 下的自写实现替代；只剩两个 Windows DLL 还在用
-    // （群系验证，V6.9 自写群系采样后一并删除），已抽到 src/main/resources/natives/windows/。
+    // 26.3 的 Baritone 通过反射调用（BaritonePathManager），无需编译期依赖。
 
     // Seedfinding (世界种子/结构定位计算库，ElytraCollector 依赖)
     extraLibs("com.seedfinding:mc_biome:1.171.1") { isTransitive = false }
@@ -106,11 +102,12 @@ fun toMinecraftCompat(version: String): String {
 tasks {
     processResources {
         // fabric.mod.json 里的版本号用纯 mod 版本（不带 MC 后缀）：
-        // 带 "-1.21.11" 会被 Fabric 的 semver 解析成 6.25 的预发布版，影响依赖判定，没必要。
+        // 带 "-26.3" 会被 Fabric 的 semver 解析成 6.6 的预发布版，影响依赖判定，没必要。
         val propertyMap = mapOf(
             "version" to modVersion,
             "minecraft_version" to toMinecraftCompat(minecraftVersion),
             "jdk_version" to libs.versions.jdk.get(),
+            "loader_version" to libs.versions.fabric.loader.get(),
         )
 
         inputs.properties(propertyMap)
@@ -140,5 +137,12 @@ tasks.jar {
 
     from("LICENSE") {
         rename { "${it}_$archivesBaseName" }
+    }
+}
+
+// 供集成测试 mod 编译使用：输出主源码集编译类路径。
+tasks.register("printCompileClasspath") {
+    doLast {
+        println(sourceSets["main"].compileClasspath.asPath)
     }
 }

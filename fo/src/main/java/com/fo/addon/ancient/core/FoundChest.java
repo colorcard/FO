@@ -1,6 +1,6 @@
 package com.fo.addon.ancient.core;
 
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
 
 /** 古城中一个符合条件的战利品箱子（移植自 misaka 古城模块）。 */
 public final class FoundChest {

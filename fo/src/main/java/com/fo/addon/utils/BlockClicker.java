@@ -1,14 +1,13 @@
 package com.fo.addon.utils;
 
 import meteordevelopment.meteorclient.utils.player.Rotations;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
-import net.minecraft.util.Hand;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * 方块点击工具（流程移植自 meteor-miku 的 BaritoneUtil.clickBlock，用户指定用 miku 的实现）。
@@ -33,21 +32,21 @@ import net.minecraft.util.math.Vec3d;
  */
 public final class BlockClicker {
 
-    private static final MinecraftClient mc = MinecraftClient.getInstance();
+    private static final Minecraft mc = Minecraft.getInstance();
 
     private BlockClicker() {
     }
 
     /** 右键点击方块指定面（带旋转 + 挥手 + 序列号交互包）。 */
-    public static void clickBlock(BlockPos pos, Direction side, boolean rotate, Hand hand) {
-        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
+    public static void clickBlock(BlockPos pos, Direction side, boolean rotate, InteractionHand hand) {
+        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
 
         // 1. 面中心命中点，向方块内部收 0.001 格：
         //    正好 +0.5 会落在方块边界上，部分服务端会判成无效交互（V6.7p12 已踩过）。
-        Vec3d hitVec = new Vec3d(
-            pos.getX() + 0.5 + side.getVector().getX() * 0.499,
-            pos.getY() + 0.5 + side.getVector().getY() * 0.499,
-            pos.getZ() + 0.5 + side.getVector().getZ() * 0.499
+        Vec3 hitVec = new Vec3(
+            pos.getX() + 0.5 + side.getUnitVec3i().getX() * 0.499,
+            pos.getY() + 0.5 + side.getUnitVec3i().getY() * 0.499,
+            pos.getZ() + 0.5 + side.getUnitVec3i().getZ() * 0.499
         );
 
         // 2. 挥手（客户端 + 服务端）
@@ -66,8 +65,8 @@ public final class BlockClicker {
     }
 
     /** 自动选面后点击（开箱子/点活板门常用：哪面够得着点哪面）。 */
-    public static void clickBlockFacingPlayer(BlockPos pos, boolean rotate, Hand hand) {
-        if (mc.player == null || mc.world == null) return;
+    public static void clickBlockFacingPlayer(BlockPos pos, boolean rotate, InteractionHand hand) {
+        if (mc.player == null || mc.level == null) return;
         clickBlock(pos, pickFace(pos), rotate, hand);
     }
 
@@ -78,18 +77,18 @@ public final class BlockClicker {
      * 把朝向带给服务端之后，再调这个方法发包——顺序才是「朝向 → 交互」。
      * 这也是参考实现（RustElytraClient 的 `lookAt` + `delay(3)`）的做法。
      */
-    public static void clickBlockNoRotate(BlockPos pos, Hand hand) {
-        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
+    public static void clickBlockNoRotate(BlockPos pos, InteractionHand hand) {
+        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
         clickBlockNoRotate(pos, pickFace(pos), hand);
     }
 
     /** 指定面 + 不碰视角的点击（需要固定点某一面时用，比如从上方点活板门）。 */
-    public static void clickBlockNoRotate(BlockPos pos, Direction side, Hand hand) {
-        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
-        Vec3d hitVec = new Vec3d(
-            pos.getX() + 0.5 + side.getVector().getX() * 0.499,
-            pos.getY() + 0.5 + side.getVector().getY() * 0.499,
-            pos.getZ() + 0.5 + side.getVector().getZ() * 0.499
+    public static void clickBlockNoRotate(BlockPos pos, Direction side, InteractionHand hand) {
+        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
+        Vec3 hitVec = new Vec3(
+            pos.getX() + 0.5 + side.getUnitVec3i().getX() * 0.499,
+            pos.getY() + 0.5 + side.getUnitVec3i().getY() * 0.499,
+            pos.getZ() + 0.5 + side.getUnitVec3i().getZ() * 0.499
         );
         swingHand(hand);
         sendSequencedPacket(hand, new BlockHitResult(hitVec, side, pos, false));
@@ -103,12 +102,12 @@ public final class BlockClicker {
      * 表现就是“点了没反应、靠近一点才偶尔成功”。
      */
     private static Direction pickFace(BlockPos pos) {
-        Vec3d eye = mc.player.getEyePos();
-        Vec3d center = Vec3d.ofCenter(pos);
+        Vec3 eye = mc.player.getEyePosition();
+        Vec3 center = Vec3.atCenterOf(pos);
         double dx = eye.x - center.x;
         double dy = eye.y - center.y;
         double dz = eye.z - center.z;
-        boolean upBlocked = !mc.world.getBlockState(pos.up()).isAir();
+        boolean upBlocked = !mc.level.getBlockState(pos.above()).isAir();
         int face = StashMoveLogic.pickClickFace(dx, dy, dz, upBlocked);
         return switch (face) {
             case StashMoveLogic.FACE_EAST -> Direction.EAST;
@@ -119,16 +118,15 @@ public final class BlockClicker {
         };
     }
 
-    private static void sendSequencedPacket(Hand hand, BlockHitResult result) {
+    private static void sendSequencedPacket(InteractionHand hand, BlockHitResult result) {
         int sequence;
-        var pending = mc.world.getPendingUpdateManager().incrementSequence();
-        sequence = pending.sequence;
+        var pending = mc.level.getBlockStatePredictionHandler().startPredicting();
+        sequence = pending.currentSequence();
         pending.close();
-        mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(hand, result, sequence));
+        mc.getConnection().send(new ServerboundUseItemOnPacket(hand, result, sequence));
     }
 
-    private static void swingHand(Hand hand) {
-        mc.player.swingHand(hand);
-        mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(hand));
+    private static void swingHand(InteractionHand hand) {
+        mc.player.swing(hand, mc.player.getItemInHand(hand).getInteractAnimation(), false);
     }
 }

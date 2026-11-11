@@ -1,8 +1,8 @@
 package com.fo.addon.utils;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.client.Minecraft;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 
 /** 旋转请求对象（移植自 meteor-miku util.Rotation） */
 public class Rotation {
@@ -16,10 +16,10 @@ public class Rotation {
         this.pitch = pitch;
     }
 
-    public Rotation(Vec3d vec3d) {
-        MinecraftClient mc = MinecraftClient.getInstance();
+    public Rotation(Vec3 vec3d) {
+        Minecraft mc = Minecraft.getInstance();
 
-        float[] angle = this.getRotation(mc.player.getEntityPos().add(0.0, mc.player.getEyeHeight(mc.player.getPose()), 0.0), vec3d);
+        float[] angle = this.getRotation(mc.player.position().add(0.0, mc.player.getEyeHeight(mc.player.getPose()), 0.0), vec3d);
         this.yaw = angle[0];
         this.pitch = angle[1];
     }
@@ -58,13 +58,13 @@ public class Rotation {
         return this;
     }
 
-    private float[] getRotation(Vec3d eyesPos, Vec3d vec) {
+    private float[] getRotation(Vec3 eyesPos, Vec3 vec) {
         double diffX = vec.x - eyesPos.x;
         double diffY = vec.y - eyesPos.y;
         double diffZ = vec.z - eyesPos.z;
         double diffXZ = Math.sqrt(diffX * diffX + diffZ * diffZ);
         float yaw = (float) Math.toDegrees(Math.atan2(diffZ, diffX)) - 90.0F;
         float pitch = (float) (-Math.toDegrees(Math.atan2(diffY, diffXZ)));
-        return new float[]{MathHelper.wrapDegrees(yaw), MathHelper.wrapDegrees(pitch)};
+        return new float[]{Mth.wrapDegrees(yaw), Mth.wrapDegrees(pitch)};
     }
 }
