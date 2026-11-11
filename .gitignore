@@ -32,3 +32,6 @@ rust-elytra/
 seedmapper-2.21.2-1.21.11.jar
 work/
 全部材料-用户上传与交付.zip
+
+# integration test build outputs
+itest/build/

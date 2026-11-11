@@ -2,7 +2,7 @@
 
 这个独立测试 mod 不属于正式发布内容。它会在客户端启动后自动打开名为 `FoTest` 的世界，然后：
 
-1. 枚举 FO 分类下的 8 个模块；
+1. 枚举 FO 分类下的 9 个模块（含 StashMover 自动搬运）；
 2. 对每个模块执行 NBT 序列化/反序列化；
 3. 打开模块设置界面（含自定义「附魔书列表」「战果」控件）渲染数帧；
 4. 启用 10 tick 再关闭；
@@ -26,7 +26,7 @@ cd ..
 
 在一个**测试用**游戏目录中放：
 
-- `FO-6.6-26.3.jar`（`fo/build/libs/`）
+- `FO-6.7p36-26.3.jar`（`fo/build/libs/`）
 - `fo-it.jar`
 - `meteor-client-26.3-*.jar`
 - `fabric-api-0.16x.x+26.3.jar`
@@ -60,7 +60,7 @@ xvfb-run -a -s '-screen 0 1280x720x24' java ...
 日志中出现下面这一行即通过：
 
 ```text
-[FO-IT] FO_INTEGRATION_TESTS_PASSED modules=8
+[FO-IT] FO_INTEGRATION_TESTS_PASSED modules=9
 ```
 
 若出现 `FO_INTEGRATION_TESTS_FAILED` 或进程退出码非 0，请查看 `logs/latest.log` 中的 `[FO-IT]` 行。

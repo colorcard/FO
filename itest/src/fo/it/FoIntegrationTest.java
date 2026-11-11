@@ -82,8 +82,8 @@ public class FoIntegrationTest implements ClientModInitializer {
                 modules = new ArrayList<>(Modules.get().getGroup(com.fo.addon.AddonTemplate.CATEGORY));
                 log("FO modules: " + modules.size());
                 for (Module m : modules) log(" - " + m.name + " settings=" + countSettings(m));
-                if (modules.size() != 8) {
-                    fail("expected 8 FO modules, got " + modules.size());
+                if (modules.size() != 9) {
+                    fail("expected 9 FO modules, got " + modules.size());
                     return;
                 }
                 phase = 3;
