@@ -980,7 +980,7 @@ $rels | ForEach-Object { $t = $_.tag_name; $_.assets | Where-Object { $_.name -l
 
 **本节是唯一权威来源**；任何窗口 / 任何 AI 接手本项目，一律按本节执行，不得沿用旧写法。
 
-1. **版本号一律不带 `V` 前缀**。正确写法是 `6.25`，不是 `V6.25`。历史遗留的 `V6.25` / `FO-V6.25` 写法已废弃，新版本不得再出现。
+1. **版本号一律不带 `V` 前缀**。正确写法是 `6.7p36`，不是 `V6.25`。历史遗留的 `V6.25` / `FO-V6.25` 写法已废弃，新版本不得再出现。
 2. **构建产物名 = `FO-<mod版本>-<MC版本>.jar`**，例：`mod-version = 6.7p36` + `minecraft = 26.3` → **`FO-6.7p36-26.3.jar`**。
    - mod 版本来自 `fo/gradle/libs.versions.toml` 的 `mod-version`；MC 版本来自同文件的 `minecraft`。
    - 两段都由 `fo/build.gradle.kts` 的 `base { version = "$modVersion-$minecraftVersion" }` 自动拼，**不要在别处写死版本串**；升 MC 版本时只改 `minecraft` 一处，产物名自动跟随。

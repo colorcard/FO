@@ -1,6 +1,6 @@
 [versions]
 # 版本号一律不带 V 前缀（V6.25 之前的写法已废弃，见 AGENTS.md「命名规范」）。
-# 构建产物名 = FO-<mod-version>-<minecraft>，如 6.6 + 26.3 -> FO-6.6-26.3.jar
+# 构建产物名 = FO-<mod-version>-<minecraft>，如 6.7p36 + 26.3 -> FO-6.7p36-26.3.jar
 mod-version = "6.7p36"
 
 # Fabric / Minecraft 26.3（26.1 起游戏不再混淆，直接使用官方名字，无需 mappings）
