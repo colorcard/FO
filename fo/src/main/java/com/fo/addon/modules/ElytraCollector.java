@@ -1,6 +1,9 @@
 package com.fo.addon.modules;
 
 import com.fo.addon.AddonTemplate;
+import com.fo.addon.gui.ModuleGuide;
+import com.fo.addon.guide.ModuleGuides;
+import com.fo.addon.pathing.PathManagers;
 import com.fo.addon.utils.Debug;
 import com.fo.addon.utils.DirectionFilter;
 import com.fo.addon.utils.FacingLogic;
@@ -19,45 +22,45 @@ import com.seedfinding.mcnoise.simplex.SimplexNoiseSampler;
 import com.seedfinding.mcseed.lcg.LCG;
 import com.seedfinding.mcseed.rand.JRand;
 import com.seedfinding.mcterrain.terrain.EndTerrainGenerator;
-import com.fo.addon.pathing.PathManagers;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.gui.GuiTheme;
-import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.gui.widgets.containers.WSection;
+import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
+import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -102,8 +105,8 @@ public class ElytraCollector extends Module {
 
     private final Setting<String> seedSetting = sgGeneral.add(new StringSetting.Builder()
         .name("世界种子")
-        .description("世界种子 (0 = 当前世界).")
-        .defaultValue("-7346913998703726680")
+        .description("世界种子 (0 = 单人存档自动读取；联机必须手动填服务器种子).")
+        .defaultValue("0")
         .build()
     );
 
@@ -402,13 +405,16 @@ public class ElytraCollector extends Module {
     // ========== Constructor ==========
     public ElytraCollector() {
         super(AddonTemplate.CATEGORY, "FO 鞘翅采集",
-            "全自动找末地城鞘翅：种子定位 + 龙头精确定位 + 高度保持飞行 + 缓降 + Baritone 寻路 + 打展示框捡鞘翅.");
+            "全自动找末地城鞘翅：种子定位 + 龙头精确定位 + 高度保持飞行 + 缓降 + Baritone 寻路 + 打展示框捡鞘翅. 使用前请看设置页底部「使用说明」.");
     }
 
     // 黑名单不输出到 UI (彗星界面)，只静默记日志；"清除黑名单"由勾选框改为按钮
     @Override
     public WWidget getWidget(GuiTheme theme) {
-        WSection section = theme.section("黑名单", true);
+        WVerticalList list = theme.verticalList();
+        list.add(ModuleGuide.section(theme, ModuleGuides.elytraCollector())).expandX();
+
+        WSection section = list.add(theme.section("黑名单", true)).expandX().widget();
         WButton clear = section.add(theme.button("清除黑名单")).expandX().widget();
         clear.action = () -> {
             synchronized (blacklist.get()) {
@@ -416,7 +422,7 @@ public class ElytraCollector extends Module {
             }
             info("黑名单已清空.");
         };
-        return section;
+        return list;
     }
 
     @Override

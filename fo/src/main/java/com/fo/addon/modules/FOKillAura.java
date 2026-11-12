@@ -1,17 +1,21 @@
 package com.fo.addon.modules;
 
 import com.fo.addon.AddonTemplate;
+import com.fo.addon.gui.ModuleGuide;
+import com.fo.addon.guide.ModuleGuides;
 import com.fo.addon.utils.Rotation;
 import com.fo.addon.utils.RotationManager;
 import com.fo.addon.utils.SwapBackTracker;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.pathing.PathManagers;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
+import meteordevelopment.meteorclient.systems.modules.combat.CrystalAura;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.combat.CrystalAura;
 import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.Target;
@@ -26,22 +30,22 @@ import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerInputPacket;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.util.Mth;
-import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.animal.Animal;
-import net.minecraft.world.entity.animal.wolf.Wolf;
 import net.minecraft.world.entity.monster.Enderman;
 import net.minecraft.world.entity.monster.zombie.ZombifiedPiglin;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MaceItem;
 import net.minecraft.world.item.TridentItem;
 import net.minecraft.world.level.GameType;
@@ -49,9 +53,9 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.function.Predicate;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -329,7 +333,12 @@ public class FOKillAura extends Module {
     public boolean attacking;
 
     public FOKillAura() {
-        super(AddonTemplate.CATEGORY, "FO 杀戮光环", "超级强力的杀敌光环，自动攻击你周围指定的实体，不卡脚");
+        super(AddonTemplate.CATEGORY, "FO 杀戮光环", "超级强力的杀敌光环，自动攻击你周围指定的实体，不卡脚. 使用前请看设置页底部「使用说明」.");
+    }
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        return ModuleGuide.section(theme, ModuleGuides.killAura());
     }
 
     @Override

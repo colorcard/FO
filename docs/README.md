@@ -2,6 +2,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [`GUIDE.md`](GUIDE.md) | **玩家使用指引**：9 个模块的前置准备、开启注意事项、常见问题 |
 | [`../AGENTS.md`](../AGENTS.md) | 硬性规范、构建/测试、命名、发布限制 |
 | [`../PORTING.md`](../PORTING.md) | 26.3 移植范围与上游同步流程 |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | 目录/模块、线程与事件、古城管线、原生库 |

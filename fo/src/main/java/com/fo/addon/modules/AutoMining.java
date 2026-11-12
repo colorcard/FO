@@ -1,15 +1,17 @@
 package com.fo.addon.modules;
 
 import com.fo.addon.AddonTemplate;
+import com.fo.addon.gui.ModuleGuide;
+import com.fo.addon.guide.ModuleGuides;
 import com.fo.addon.pathing.PathManagers;
+import com.fo.addon.utils.CraftingSlotMath;
 import com.fo.addon.utils.FacingLogic;
 import com.fo.addon.utils.InteractionUtils;
-import com.fo.addon.utils.CraftingSlotMath;
 import com.fo.addon.utils.PickupNextLogic;
 import com.fo.addon.utils.PickupTimeoutLogic;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.player.AutoTool;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.EnumSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
@@ -17,13 +19,15 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.Modules;
+import meteordevelopment.meteorclient.systems.modules.player.AutoTool;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -36,13 +40,12 @@ import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.ShulkerBoxMenu;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
-import net.minecraft.world.level.Level;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -51,8 +54,9 @@ import net.minecraft.world.level.block.FlowerBlock;
 import net.minecraft.world.level.block.GrassBlock;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
-import net.minecraft.world.level.block.TallGrassBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.TallGrassBlock;
+import net.minecraft.world.level.Level;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -239,7 +243,12 @@ public class AutoMining extends Module {
     private int clearIndex = 0;
 
     public AutoMining() {
-        super(AddonTemplate.CATEGORY, "FO 自动挖矿", "自动挖矿：钻石/残骸模式全自动挖掘、合成、存储、精准回收末影箱、深暗之域逃离。");
+        super(AddonTemplate.CATEGORY, "FO 自动挖矿", "自动挖矿：钻石/残骸模式全自动挖掘、合成、存储、精准回收末影箱、深暗之域逃离. 使用前请看设置页底部「使用说明」.");
+    }
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        return ModuleGuide.section(theme, ModuleGuides.autoMining());
     }
 
     // ================= 生命周期 =================

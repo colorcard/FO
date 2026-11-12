@@ -1,5 +1,7 @@
 package com.fo.addon.modules;
 
+import com.fo.addon.gui.ModuleGuide;
+import com.fo.addon.guide.ModuleGuides;
 import com.fo.addon.pathing.PathManagers;
 import com.fo.addon.utils.Debug;
 import com.fo.addon.utils.FacingLogic;
@@ -16,15 +18,17 @@ import com.fo.addon.utils.SupplyFingerprintLogic;
 import meteordevelopment.meteorclient.events.entity.player.BlockBreakingCooldownEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.pathing.BaritoneUtils;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
+import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.orbit.EventHandler;
 import meteordevelopment.orbit.EventPriority;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -37,12 +41,12 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -178,7 +182,12 @@ public class AutoMineSand extends Module {
     );
 
     public AutoMineSand() {
-        super(com.fo.addon.AddonTemplate.CATEGORY, "FO 自动挖沙", "自动寻路挖沙 + FO补给盒自动补铲/食物/图腾 + 存沙");
+        super(com.fo.addon.AddonTemplate.CATEGORY, "FO 自动挖沙", "自动寻路挖沙 + FO补给盒自动补铲/食物/图腾 + 存沙. 使用前请看设置页底部「使用说明」.");
+    }
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        return ModuleGuide.section(theme, ModuleGuides.autoMineSand());
     }
 
     @Override

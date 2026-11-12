@@ -43,4 +43,4 @@ JAVA_HOME=/path/to/jdk-25 ./gradlew build
 
 ## 文档
 
-完整文档索引见 [`../docs/README.md`](../docs/README.md)：架构、变更记录、测试、CI、自动搬运配置。
+玩家使用指引见 [`../docs/GUIDE.md`](../docs/GUIDE.md)（前置准备、开启注意事项、常见问题）；完整文档索引见 [`../docs/README.md`](../docs/README.md)：架构、变更记录、测试、CI、自动搬运配置。

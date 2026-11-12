@@ -1,10 +1,14 @@
 package com.fo.addon.modules;
 
 import com.fo.addon.AddonTemplate;
+import com.fo.addon.gui.ModuleGuide;
+import com.fo.addon.guide.ModuleGuides;
 import com.fo.addon.utils.TreeLogic;
 import meteordevelopment.meteorclient.events.entity.player.StartBreakingBlockEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.ColorSetting;
@@ -24,11 +28,11 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.SaplingBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -97,7 +101,12 @@ public class AutoTree extends Module {
     private long lastHintMs = 0;
 
     public AutoTree() {
-        super(AddonTemplate.CATEGORY, "FO 自动种树", "自动种树：左键选择目标方块，手持树苗时自动种植。");
+        super(AddonTemplate.CATEGORY, "FO 自动种树", "自动种树：左键选择目标方块，手持树苗时自动种植. 使用前请看设置页底部「使用说明」.");
+    }
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        return ModuleGuide.section(theme, ModuleGuides.autoTree());
     }
 
     @Override

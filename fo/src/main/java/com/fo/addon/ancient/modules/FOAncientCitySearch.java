@@ -18,6 +18,8 @@ import com.fo.addon.ancient.core.GameVersionOption;
 import com.fo.addon.ancient.core.LootTarget;
 import com.fo.addon.ancient.core.StealStatsFile;
 import com.fo.addon.ancient.core.XaeroWaypointBridge;
+import com.fo.addon.gui.ModuleGuide;
+import com.fo.addon.guide.ModuleGuides;
 import com.fo.addon.utils.AncientCityLocatorLogic;
 import com.fo.addon.utils.AncientStealLogic;
 import com.fo.addon.utils.StealStatsSetting;
@@ -29,16 +31,18 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadLocalRandom;
 import meteordevelopment.meteorclient.events.packets.InventoryEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.ColorSetting;
@@ -53,20 +57,20 @@ import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -288,7 +292,7 @@ public class FOAncientCitySearch extends Module {
     public FOAncientCitySearch() {
         super(AddonTemplate.CATEGORY, "FO 古城战利品搜索",
             "精确搜索古城中包含附魔金苹果和迅捷潜行3的箱子位置（半自动，结果输出到聊天与 Xaero 路径点；"
-                + "开启「自动偷取」后开箱即自动取走这两样）");
+                + "开启「自动偷取」后开箱即自动取走这两样）. 使用前请看设置页底部「使用说明」.");
 
         mc = Minecraft.getInstance();
 
@@ -481,6 +485,11 @@ public class FOAncientCitySearch extends Module {
 
         searching = false;
         manualSeed = null;
+    }
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        return ModuleGuide.section(theme, ModuleGuides.ancientCitySearch());
     }
 
     @Override

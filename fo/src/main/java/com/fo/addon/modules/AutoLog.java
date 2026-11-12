@@ -1,24 +1,28 @@
 package com.fo.addon.modules;
 
 import com.fo.addon.AddonTemplate;
+import com.fo.addon.gui.ModuleGuide;
+import com.fo.addon.guide.ModuleGuides;
 import com.fo.addon.utils.RepairLogic;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.settings.BlockPosSetting;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
+import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import meteordevelopment.meteorclient.systems.modules.misc.AutoReconnect;
 import meteordevelopment.meteorclient.utils.player.SlotUtils;
 import meteordevelopment.meteorclient.utils.world.TickRate;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.ClientboundDisconnectPacket;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * FO 自动下线：多种触发条件下自动断开服务器（安全网）。
@@ -192,7 +196,12 @@ public class AutoLog extends Module {
     private boolean waitingForReconnection = false;
 
     public AutoLog() {
-        super(AddonTemplate.CATEGORY, "FO 自动LogPlus", "多种触发条件下自动断开服务器: 低于Y / 护甲耐久低 / 传送门超时 / 靠近坐标 / 服务器无响应.");
+        super(AddonTemplate.CATEGORY, "FO 自动LogPlus", "多种触发条件下自动断开服务器: 低于Y / 护甲耐久低 / 传送门超时 / 靠近坐标 / 服务器无响应. 使用前请看设置页底部「使用说明」.");
+    }
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        return ModuleGuide.section(theme, ModuleGuides.autoLog());
     }
 
     @Override
