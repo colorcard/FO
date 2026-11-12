@@ -9,8 +9,8 @@ import java.nio.file.StandardCopyOption;
 /**
  * CubiomesJNI 原生库桥（黑盒域，包名必须保持 com.custom.addon.util ——
  * 原生库导出的 JNI 符号是 Java_com_custom_addon_util_CubiomesJNI_*，改包名会链接失败）。
- * 从 jar 内 /natives/windows/（Windows）或 /natives/linux-x86_64/（Linux）提取原生库到临时目录后加载；
- * 找不到时回退本地文件/系统库路径。Linux 原生库由 xpple/cubiomes 构建。
+ * 从 jar 内 /natives/{windows,linux-x86_64,linux-arm64,macos}/ 提取原生库到临时目录后加载；
+ * 找不到时回退本地文件/系统库路径。三平台原生库均由 xpple/cubiomes（MC 26.3）构建。
  */
 public class CubiomesJNI {
     private static boolean loaded;
@@ -38,10 +38,14 @@ public class CubiomesJNI {
         String os = System.getProperty("os.name", "").toLowerCase();
         if (os.contains("win")) {
             loadWindowsFromJarOrSystem();
+        } else if (os.contains("mac")) {
+            loadMacFromJarOrSystem();
         } else if (os.contains("linux")) {
-            loadLinuxFromJarOrSystem();
+            String arch = System.getProperty("os.arch", "").toLowerCase();
+            String dir = (arch.contains("aarch64") || arch.contains("arm64"))
+                ? "linux-arm64" : "linux-x86_64";
+            loadLinuxFromJarOrSystem(dir);
         } else {
-            // 其它平台（macOS 等）暂未随包提供原生库，允许系统库兜底。
             try {
                 System.loadLibrary("CubiomesJNI");
                 System.out.println("[CubiomesJNI] Loaded from system library path");
@@ -51,10 +55,9 @@ public class CubiomesJNI {
         }
     }
 
-    private static void loadLinuxFromJarOrSystem() throws IOException {
-        String base = "/natives/linux-x86_64/";
+    private static void loadLinuxFromJarOrSystem(String dir) throws IOException {
+        String base = "/natives/" + dir + "/";
         if (CubiomesJNI.class.getResource(base + "libCubiomesJNI.so") == null) {
-            // 开发环境/系统安装：允许从 java.library.path 或 LD_LIBRARY_PATH 加载。
             try {
                 System.loadLibrary("CubiomesJNI");
                 System.out.println("[CubiomesJNI] Loaded from system library path");
@@ -75,6 +78,28 @@ public class CubiomesJNI {
 
         Path jniPath = tempDir.resolve("libCubiomesJNI.so");
         copyResource(base + "libCubiomesJNI.so", jniPath);
+        System.load(jniPath.toString());
+        System.out.println("[CubiomesJNI] Loaded from JAR: " + jniPath);
+    }
+
+    private static void loadMacFromJarOrSystem() throws IOException {
+        String base = "/natives/macos/";
+        String dylibName = "libCubiomesJNI.dylib";
+        if (CubiomesJNI.class.getResource(base + dylibName) == null) {
+            try {
+                System.loadLibrary("CubiomesJNI");
+                System.out.println("[CubiomesJNI] Loaded from system library path");
+                return;
+            } catch (Throwable t) {
+                throw new IOException("Cannot find libCubiomesJNI.dylib in JAR nor system library path", t);
+            }
+        }
+
+        tempDir = Files.createTempDirectory("cubiomes");
+        tempDir.toFile().deleteOnExit();
+
+        Path jniPath = tempDir.resolve(dylibName);
+        copyResource(base + dylibName, jniPath);
         System.load(jniPath.toString());
         System.out.println("[CubiomesJNI] Loaded from JAR: " + jniPath);
     }
@@ -106,10 +131,13 @@ public class CubiomesJNI {
         tempDir = Files.createTempDirectory("cubiomes");
         tempDir.toFile().deleteOnExit();
 
-        Path depPath = tempDir.resolve("cubiomes.dll");
-        copyResource("/natives/windows/cubiomes.dll", depPath);
-        System.load(depPath.toString());
-        System.out.println("[CubiomesJNI] Loaded dependency: " + depPath);
+        // 新版 Windows DLL 默认静态链接 cubiomes；若仍有旧版依赖 DLL，则先加载。
+        if (CubiomesJNI.class.getResource("/natives/windows/cubiomes.dll") != null) {
+            Path depPath = tempDir.resolve("cubiomes.dll");
+            copyResource("/natives/windows/cubiomes.dll", depPath);
+            System.load(depPath.toString());
+            System.out.println("[CubiomesJNI] Loaded dependency: " + depPath);
+        }
 
         Path jniPath = tempDir.resolve(dllName);
         copyResource("/natives/windows/" + dllName, jniPath);

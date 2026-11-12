@@ -6,7 +6,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/src/main/resources/natives/linux-x86_64"
+ARCH="${TARGET_ARCH:-$(uname -m)}"
+case "$ARCH" in
+    x86_64|amd64) NATIVE_DIR="linux-x86_64" ;;
+    aarch64|arm64) NATIVE_DIR="linux-arm64" ;;
+    *) echo "不支持的 Linux 架构: $ARCH" >&2; exit 1 ;;
+esac
+OUT="$ROOT/src/main/resources/natives/$NATIVE_DIR"
 WORK="${CUBIOMES_BUILD_DIR:-/tmp/opencode/cubiomes-linux-build}"
 CUBIOMES_COMMIT="${CUBIOMES_COMMIT:-8c37ab26f2b47740839eb0045b34efc5141eb065}"
 CUBIOMES_URL="https://codeload.github.com/xpple/cubiomes/tar.gz/${CUBIOMES_COMMIT}"
