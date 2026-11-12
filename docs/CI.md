@@ -7,7 +7,7 @@ CI 配置：`.github/workflows/dev_build.yml`
 | 平台 | 内容 |
 | --- | --- |
 | `ubuntu-latest` | 先构建 Linux x86_64 cubiomes 原生库，再 `./gradlew build`（含 486 个单测 + Linux 原生库测试），上传测试报告和 `.so` |
-| `windows-latest` | MSYS2/MinGW 重建 Windows `CubiomesJNI.dll`，再 `gradlew.bat build`（含 Windows native 测试） |
+| `windows-latest` | MSYS2/UCRT64 重建 Windows `CubiomesJNI.dll`，再 `gradlew.bat build`（含 Windows native 测试） |
 | `macos-latest` | clang 重建 macOS universal `libCubiomesJNI.dylib`，再 `./gradlew build`（含 macOS native 测试） |
 
 - JDK：Temurin 25

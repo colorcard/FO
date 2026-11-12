@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the Windows x86_64 cubiomes JNI bridge from xpple/cubiomes.
-# Run inside MSYS2 MinGW64 (GitHub Actions: msys2/setup-msys2).
+# Run inside MSYS2 UCRT64 (or MinGW64); GitHub Actions uses UCRT64.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,7 +8,7 @@ OUT="$ROOT/src/main/resources/natives/windows"
 WORK="${CUBIOMES_BUILD_DIR:-/tmp/opencode/cubiomes-windows-build}"
 CUBIOMES_COMMIT="${CUBIOMES_COMMIT:-8c37ab26f2b47740839eb0045b34efc5141eb065}"
 CUBIOMES_URL="https://codeload.github.com/xpple/cubiomes/tar.gz/${CUBIOMES_COMMIT}"
-CC="${CC:-x86_64-w64-mingw32-gcc}"
+CC="${CC:-gcc}"
 
 # setup-java gives a Windows path (C:\...); gcc/cmake want a POSIX path.
 JAVA_HOME_POSIX="$JAVA_HOME"
