@@ -3,6 +3,7 @@ package fo.it;
 import com.fo.addon.gui.EnchantLevelMapSettingScreen;
 import com.fo.addon.pathing.PathManagers;
 import com.fo.addon.modules.AutoMining;
+import com.fo.addon.modules.ElytraCollector;
 import com.fo.addon.utils.EnchantLevelMapSetting;
 import com.fo.addon.utils.FakeBlockManager;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
@@ -25,8 +26,11 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.nbt.CompoundTag;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * FO 26.3 集成冒烟测试（仅测试环境使用，不随正式 jar 发布）。
@@ -92,8 +96,9 @@ public class FoIntegrationTest implements ClientModInitializer {
             case 4 -> testClassTweakerAndBaritone();
             case 5 -> testAncientSearch();
             case 6 -> testAutoMiningWithGear();
-            case 7 -> testElytraSearch();
-            case 8 -> {
+            case 7 -> testNoEnderChestResupplySkip();
+            case 8 -> testElytraSearch();
+            case 9 -> {
                 if (wait-- > 0) return;
                 log("FO_INTEGRATION_TESTS_PASSED modules=" + modules.size());
                 finish(0);
@@ -214,6 +219,74 @@ public class FoIntegrationTest implements ClientModInitializer {
         }
     }
 
+    /** 回归：没有末影箱时补货只跳过一次，不能每 tick 重新进入 PLACE_EC/NONE 空转。 */
+    private void testNoEnderChestResupplySkip() {
+        if (sub == 0) {
+            var server = mc.getSingleplayerServer();
+            if (server == null || mc.player == null) {
+                fail("singleplayer server/player missing for no-EC test");
+                return;
+            }
+            ServerPlayer sp = server.getPlayerList().getPlayer(mc.player.getUUID());
+            if (sp == null) {
+                fail("ServerPlayer missing for no-EC test");
+                return;
+            }
+            // 清空背包，确保没有末影箱/烟花/下界之星；传送到空旷高空避免附近已有末影箱。
+            for (int i = 0; i < sp.getInventory().getContainerSize(); i++) {
+                sp.getInventory().setItem(i, ItemStack.EMPTY);
+            }
+            sp.teleportTo(server.overworld(), 0.5, 100.0, 0.5, Set.of(), 0.0f, 0.0f, false);
+
+            ElytraCollector elytra = Modules.get().get(ElytraCollector.class);
+            if (elytra == null) {
+                fail("ElytraCollector not found");
+                return;
+            }
+            elytra.disable();
+            set(elytra, "背包空格阈值", 0);
+            set(elytra, "物资列表", List.of("minecraft:nether_star;1;1"));
+            sub = 1;
+            wait = 20;
+            return;
+        }
+        if (sub == 1) {
+            if (wait-- > 0) return;
+            ElytraCollector elytra = Modules.get().get(ElytraCollector.class);
+            try {
+                Method start = ElytraCollector.class.getDeclaredMethod("maybeStartSession");
+                start.setAccessible(true);
+                Method storageTick = ElytraCollector.class.getDeclaredMethod("onStorageTick");
+                storageTick.setAccessible(true);
+                Field phase = ElytraCollector.class.getDeclaredField("storagePhase");
+                phase.setAccessible(true);
+                Field skipped = ElytraCollector.class.getDeclaredField("resupplySkippedNoEc");
+                skipped.setAccessible(true);
+
+                start.invoke(elytra);
+                Object first = phase.get(elytra);
+                log("no-EC session phase=" + first);
+                storageTick.invoke(elytra);
+                Object afterSkip = phase.get(elytra);
+                boolean flag = skipped.getBoolean(elytra);
+                start.invoke(elytra);
+                Object afterRetry = phase.get(elytra);
+                log("no-EC skip phase=" + afterSkip + " flag=" + flag + " retry=" + afterRetry);
+                if (!"NONE".equals(afterRetry.toString())) {
+                    fail("no ender chest resupply retried immediately: " + afterRetry);
+                    return;
+                }
+                log("no-EC resupply skip regression ok");
+            } catch (Throwable t) {
+                fail("no-EC resupply test failed: " + t);
+                return;
+            }
+            phase = 8;
+            sub = 0;
+            wait = 0;
+        }
+    }
+
     private void testElytraSearch() {
         if (sub == 0) {
             Module elytra = Modules.get().get(com.fo.addon.modules.ElytraCollector.class);
@@ -238,7 +311,7 @@ public class FoIntegrationTest implements ClientModInitializer {
                 elytra.disable();
                 log("elytra search stopped");
             }
-            phase = 8;
+            phase = 9;
             wait = 20;
         }
     }

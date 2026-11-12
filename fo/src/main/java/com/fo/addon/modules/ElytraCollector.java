@@ -358,6 +358,8 @@ public class ElytraCollector extends Module {
     private int ecBaseline = 0;          // 放置末影箱前的末影箱数量
     private boolean dumpNeeded = false;
     private boolean resupplyNeeded = false;
+    // 没有末影箱导致补货被跳过后，本艘船周期内不再反复启动存储会话（防止 PLACE_EC/NONE 空转）
+    private boolean resupplySkippedNoEc = false;
     private StoragePhase afterClose = StoragePhase.NONE;
     private int elytraBeforeFrame = 0;   // 攻击展示框前的鞘翅数量
     private List<BlockPos> placeCandidates = new ArrayList<>(); // 放置候选位置 (按距离排序)
@@ -503,6 +505,7 @@ public class ElytraCollector extends Module {
         storagePhase = StoragePhase.NONE;
         storageTick = 0;
         boxInventorySlot = -1;
+        resupplySkippedNoEc = false;
         info("开始搜索末地城 (范围=" + searchRange.get() + " 方块)...");
         if (parseSupplies().isEmpty()) {
             info("物资列表为空，自动补货已跳过 (如需补货请在存储分组中配置).");
@@ -685,6 +688,7 @@ public class ElytraCollector extends Module {
         landingRecover = false;
         recoverCount = 0;
         stateTick = 0;
+        resupplySkippedNoEc = false;
         info("飞向最近未去过的船，朝向=" + directionLabel(current.facing));  // V4.24: 不显示坐标（无政府服禁止暴露）
         state = State.FLYING;
     }
@@ -741,7 +745,7 @@ public class ElytraCollector extends Module {
         }
 
         // 地面且需要存储操作时先执行 (补货/存鞘翅)
-        if (mc.player.onGround() && stateTick <= 2) {
+        if (mc.player.onGround() && stateTick == 1) {
             maybeStartSession();
             if (storagePhase != StoragePhase.NONE) return;
         }
@@ -1259,6 +1263,16 @@ public class ElytraCollector extends Module {
         // 曾改为"背包里有鞘翅就存"：每艘船都在起飞前挖盒存储，玩家位置被带离降落点，起飞朝船体撞墙，已回退)
         dumpNeeded = freeSlots() <= freeSlotDump.get();
         resupplyNeeded = anyDeficit();
+        if (resupplySkippedNoEc) {
+            if (!resupplyNeeded) {
+                resupplySkippedNoEc = false;
+            } else if (!dumpNeeded && findItemSlot(Items.ENDER_CHEST) == -1) {
+                // 没有末影箱可补货：本艘船周期内不再重试，避免每次起飞前 PLACE_EC/NONE 空转
+                return;
+            } else {
+                resupplySkippedNoEc = false;
+            }
+        }
         if (dumpNeeded || resupplyNeeded) {
             info("存储会话: 存鞘翅=" + dumpNeeded + ", 补货=" + resupplyNeeded);
             if (resupplyNeeded) {
@@ -1418,6 +1432,7 @@ supplyScanStart = 0;
                     storageTick = 0;
                     dumpNeeded = false;
                     resupplyNeeded = false;
+                    resupplySkippedNoEc = true;
                 }
                 return;
             }

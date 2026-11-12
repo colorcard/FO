@@ -8,6 +8,7 @@
 - 2026-11-12：基于上游 `jialebot6666/FO` `main`（6.7p36）移植到 Minecraft 26.3；9 个模块、Linux x86_64 cubiomes、三平台 CI。
 - 2026-11-12：发布 `FO-6.7p36-26.3.jar`：https://github.com/colorcard/FO/releases/tag/6.7p36-26.3
 - 2026-11-12：cubiomes 三平台原生库统一改为 xpple/cubiomes（MC 26.3）重建：Linux `.so`、Windows UCRT64 静态 DLL、macOS universal dylib；CI 三平台分别构建并跑 native 测试。
+- 2026-11-12：修复「无末影箱补货时 PLACE_EC/NONE 状态空转」；`resupplySkippedNoEc` 让本艘船周期只尝试一次，并加 `itest` 回归。
 - 旧 6.6 移植保留在本地分支 `port/26.3-6.6`，仅作对照。
 
 ## 历史记录（1.21.11 时代）
