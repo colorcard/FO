@@ -40,3 +40,7 @@ JAVA_HOME=/path/to/jdk-25 ./gradlew build
 ## 开发规范
 
 仓库根目录的 [`AGENTS.md`](../AGENTS.md) 是构建、测试、命名、提交与发版的唯一权威说明。26.3 移植的注意事项在文件顶部的「26.3 移植分支」一节。
+
+## 文档
+
+完整文档索引见 [`../docs/README.md`](../docs/README.md)：架构、变更记录、测试、CI、自动搬运配置。
