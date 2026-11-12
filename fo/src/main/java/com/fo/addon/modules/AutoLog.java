@@ -202,7 +202,7 @@ public class AutoLog extends Module {
         if (waitingForReconnection) {
             waitingForReconnection = false;
             AutoReconnect autoReconnect = Modules.get().get(AutoReconnect.class);
-            Setting<Double> delay = ((Setting<Double>) autoReconnect.settings.get("delay"));
+            Setting<Double> delay = autoReconnect.settings.get("delay", Double.class);
             delay.set(oldDelay);
             if (!autoReconnectEnabled && autoReconnect.isActive()) {
                 autoReconnect.toggle();
@@ -220,7 +220,7 @@ public class AutoLog extends Module {
                 if (reconnectAfterNotResponding.get()) {
                     AutoReconnect autoReconnect = Modules.get().get(AutoReconnect.class);
                     autoReconnectEnabled = autoReconnect.isActive();
-                    Setting<Double> delay = ((Setting<Double>) autoReconnect.settings.get("delay"));
+                    Setting<Double> delay = autoReconnect.settings.get("delay", Double.class);
                     oldDelay = delay.get();
                     delay.set((double) secondsToReconnect.get());
                     if (!autoReconnectEnabled) {

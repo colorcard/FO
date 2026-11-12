@@ -274,8 +274,7 @@ public final class AncientChestStore {
 
     private static void readMarks(AncientChestStore store, String scope, List<?> list) {
         for (Object item : list) {
-            if (!(item instanceof Map<?, ?> raw)) continue;
-            Map<String, Object> m = (Map<String, Object>) raw;
+            if (!(item instanceof Map<?, ?> m)) continue;
             String label = m.get("label") instanceof String s ? s : LABEL_GOLD;
             store.add(scope, new Mark(
                 intOf(m.get("x")), intOf(m.get("y")), intOf(m.get("z")), label));
