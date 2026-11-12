@@ -7,7 +7,7 @@ cd fo
 JAVA_HOME=/path/to/jdk-25 ./gradlew test --rerun-tasks --no-build-cache
 ```
 
-当前规模：**54 个测试套件 / 478 tests / 0 failures / 0 errors**。
+当前规模：**56 个测试套件 / 486 tests / 0 failures / 0 errors**（Linux 本机跳过 8 个 Windows/macOS 条件测试）。
 
 测试主要在 `fo/src/test/java/com/fo/addon/`：
 
@@ -15,16 +15,16 @@ JAVA_HOME=/path/to/jdk-25 ./gradlew test --rerun-tasks --no-build-cache
 | --- | --- |
 | `ancient/core/` | 古城定位、拼图、战利品表、箱子记录、统计、Xaero 桥 |
 | `utils/` 相关测试 | 方向过滤、种植/丢弃/存盒/寻路/旋转/珍珠/搬运等纯逻辑 |
-| `CubiomesJniLinuxTest` | Linux 原生库加载、MC 26.3 群系验证、区域找城 |
+| `CubiomesJniLinuxTest` / `CubiomesJniWindowsTest` / `CubiomesJniMacTest` | 各平台原生库加载、MC 26.3 群系验证、区域找城 |
 
 原则：**能脱离 Minecraft 的判定逻辑尽量放 `utils/` 并写单测**；与客户端时序/世界强耦合的路径靠运行时冒烟测试。
 
-## Linux 原生库测试
+## 原生库测试
 
 ```bash
 cd fo
-JAVA_HOME=/path/to/jdk-25 ./natives/build-linux.sh
-JAVA_HOME=/path/to/jdk-25 ./gradlew test --tests com.fo.addon.CubiomesJniLinuxTest
+JAVA_HOME=/path/to/jdk-25 ./natives/build-linux.sh      # 或 build-windows.sh / build-macos.sh
+JAVA_HOME=/path/to/jdk-25 ./gradlew test --tests 'com.fo.addon.CubiomesJni*Test'
 ```
 
 覆盖：

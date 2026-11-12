@@ -55,10 +55,10 @@
 
 ## 原生库
 
-- Linux x86_64：`natives/linux-x86_64/libCubiomesJNI.so` + `libcubiomes.so`，由 xpple/cubiomes（MC 26.3）构建。
-- Windows：`natives/windows/CubiomesJNI.dll` + `cubiomes.dll`（当前保留旧 DLL）。
-- macOS：暂无随包原生库，`CubiomesJNI` 优雅回退，古城搜索跳过群系验证。
-- 构建/重新生成：见 [`../fo/natives/README.md`](../fo/natives/README.md)。
+- Linux x86_64：`natives/linux-x86_64/libCubiomesJNI.so` + `libcubiomes.so`
+- Windows x86_64：`natives/windows/CubiomesJNI.dll`（静态链接 cubiomes，无 `cubiomes.dll` 依赖）
+- macOS universal（x86_64 + arm64）：`natives/macos/libCubiomesJNI.dylib`
+- 三平台均由 xpple/cubiomes（MC 26.3）构建；构建/重新生成见 [`../fo/natives/README.md`](../fo/natives/README.md)。
 
 ## 构建与发布
 

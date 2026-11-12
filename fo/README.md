@@ -12,7 +12,7 @@ FO 是 [Meteor Client](https://github.com/MeteorDevelopment/meteor-client) 的 F
 - Loom：1.18.4，Gradle 9.8.1
 - Access Widener 已迁移为 26.3 Class Tweaker：`src/main/resources/fo.classtweaker`
 - Baritone：运行时可选；`BaritonePathManager` 通过反射调用，无需编译期 jar
-- 古城群系验证：Linux 使用随包 `natives/linux-x86_64/` 下的 xpple/cubiomes 原生库（支持 MC 26.3），Windows 保留原 DLL
+- 古城群系验证：Linux/Windows/macOS 均使用随包 xpple/cubiomes 原生库（MC 26.3）
 
 ## 构建
 
@@ -20,7 +20,7 @@ FO 是 [Meteor Client](https://github.com/MeteorDevelopment/meteor-client) 的 F
 JAVA_HOME=/path/to/jdk-25 ./gradlew build
 ```
 
-产物在 `build/libs/FO-6.7p36-26.3.jar`。构建会同时运行全部 JUnit 测试（当前 478 个（54 个测试套件），0 failures / 0 errors）。
+产物在 `build/libs/FO-6.7p36-26.3.jar`。构建会同时运行全部 JUnit 测试（当前 486 个（56 个测试套件，含平台条件跳过），0 failures / 0 errors）。
 
 ## 运行
 
