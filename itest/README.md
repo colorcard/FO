@@ -10,7 +10,8 @@
 6. 验证 Baritone 反射桥可初始化、可 `moveTo` / `stop`；
 7. 启动鞘翅采集搜索（小半径）；
 8. 启动古城搜索（异步线程/资源读取）；
-9. 输出 `FO_INTEGRATION_TESTS_PASSED` 后退出。
+9. 在 Linux x86_64 上验证随包 cubiomes `.so` 能加载，古城搜索显示「群系验证: 已启用（cubiomes）」；
+10. 输出 `FO_INTEGRATION_TESTS_PASSED modules=9` 后退出。
 
 ## 构建
 
