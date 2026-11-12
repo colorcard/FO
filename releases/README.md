@@ -48,7 +48,7 @@
 - **6.7p36-26.3**：基于上游 6.7p36 的 Minecraft 26.3 移植版
   - Release：https://github.com/colorcard/FO/releases/tag/6.7p36-26.3
   - 产物：`FO-6.7p36-26.3.jar`
-  - 9 个模块、Linux x86_64 cubiomes 原生库、CI 三平台通过
+  - 9 个模块、Linux/Windows/macOS 三平台 xpple/cubiomes 原生库、CI 三平台通过
 
 ## 版本清单
 
@@ -57,7 +57,7 @@
 
 | 版本 | commit | 说明 |
 |---|---|---|
-| 6.7p36-26.3 | `4cee638` | MC 26.3 移植版：9 模块、Linux cubiomes、三平台 CI |
+| 6.7p36-26.3 | `62ce5a6` | MC 26.3 移植版：9 模块、三平台 xpple/cubiomes、三平台 CI |
 | 0.9 | `acf6c65` | ElytraCollector 三 bug 修复 |
 | 1.0 | `acf6c65` | 默认物资金胡萝卜 |
 | 1.1 | `acf6c65` | 存鞘翅新流程 + 方向过滤 + StorageRecovery |
