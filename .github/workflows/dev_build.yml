@@ -34,16 +34,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
 
       - name: Set up Gradle cache
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Build Linux cubiomes native library
         if: runner.os == 'Linux'
@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ runner.os }}
           path: fo/build/test-results/test/*.xml
@@ -77,7 +77,7 @@ jobs:
 
       - name: Upload jar
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FO-jar-${{ runner.os }}
           path: fo/build/libs/*.jar
@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload Linux native libs
         if: success() && runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: FO-native-linux-x86_64
           path: |
