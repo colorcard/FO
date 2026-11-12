@@ -39,7 +39,7 @@ cd fo
 JAVA_HOME=/path/to/jdk-25 ./natives/build-linux.sh
 ```
 
-Windows（MSYS2 MinGW64）：
+Windows（MSYS2 UCRT64，CI 使用）：
 
 ```bash
 cd fo
