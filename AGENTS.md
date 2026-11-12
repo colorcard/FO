@@ -2,7 +2,10 @@
 
 ## ⛔ 发布限制（用户明确指令，优先级最高）
 
-> 已授权记录（2026-11-12）：用户明确要求建立公开 fork，已创建 https://github.com/colorcard/FO（`main` + `port/26.3`）。该授权**仅限源码 fork**，不包含 GitHub Release、jar 上传或其它公开发布；后续发版仍需逐次授权。
+> 已授权记录（2026-11-12）：
+> - 用户明确要求建立公开 fork，已创建 https://github.com/colorcard/FO（`main` + `port/26.3`）。
+> - 用户随后明确要求「release 一份」，已发布 https://github.com/colorcard/FO/releases/tag/6.7p36-26.3（`FO-6.7p36-26.3.jar`）。
+> - 以上授权仅限本次 fork 与本次 Release；后续新的公开发布仍需逐次授权。
 
 **未经用户明确命令，严禁公开发布本 mod**，包括但不限于：`git push` 到任何公开远端、创建 GitHub Release/fork/公开仓库、上传 jar 到 Modrinth/CurseForge/群/网盘/论坛/社交媒体。允许本地 commit、本地 tag、本地构建和本地测试。需要发布时必须先得到用户逐次明确授权；本节与下方任何发布流程冲突时，以本节为准。
 
