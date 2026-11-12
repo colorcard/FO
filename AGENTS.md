@@ -14,6 +14,7 @@
 > - Baritone 不再需要编译期 jar：`BaritonePathManager` 全程反射；运行时由 26.3 的 baritone mod 提供。
 > - 26.3 运行时冒烟测试：`itest/`（独立测试 mod，不随正式 jar 发布），判定 `FO_INTEGRATION_TESTS_PASSED modules=9`。
 > - Linux 古城群系验证已接入 xpple/cubiomes（MC 26.3）：随包提供 `natives/linux-x86_64/libCubiomesJNI.so` + `libcubiomes.so`，构建/说明见 `fo/natives/README.md`。
+> - CI：`.github/workflows/dev_build.yml` 在 Ubuntu / Windows / macOS 上构建并跑单测；Linux 额外重建原生库并上传 `.so`。说明见 `docs/CI.md`。
 > - 旧 6.6 移植保留在本地分支 `port/26.3-6.6`，仅作对照；当前交付以本分支为准。
 >
 > 下方 1.21.11 时代的历史记录保留，用于追溯功能语义；构建/运行参数以本节和「构建与测试」为准。
