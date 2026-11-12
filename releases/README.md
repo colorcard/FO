@@ -43,6 +43,13 @@
 - ⚠️ 迁移后**旧链接会失效**：`releases/tag/V6.25`、`releases/download/V6.25/FO-V6.25.jar` 等已不存在，
   请改用 `releases/tag/6.25`、`releases/download/6.25/FO-6.25-1.21.11.jar`。
 
+## 26.3 移植版
+
+- **6.7p36-26.3**：基于上游 6.7p36 的 Minecraft 26.3 移植版
+  - Release：https://github.com/colorcard/FO/releases/tag/6.7p36-26.3
+  - 产物：`FO-6.7p36-26.3.jar`
+  - 9 个模块、Linux x86_64 cubiomes 原生库、CI 三平台通过
+
 ## 版本清单
 
 > commit 说明：2.4 起各版本按「Vx.y:」提交前缀或该版本功能 commit 回追；0.9~2.3 早期无版本前缀，
@@ -50,6 +57,7 @@
 
 | 版本 | commit | 说明 |
 |---|---|---|
+| 6.7p36-26.3 | `4cee638` | MC 26.3 移植版：9 模块、Linux cubiomes、三平台 CI |
 | 0.9 | `acf6c65` | ElytraCollector 三 bug 修复 |
 | 1.0 | `acf6c65` | 默认物资金胡萝卜 |
 | 1.1 | `acf6c65` | 存鞘翅新流程 + 方向过滤 + StorageRecovery |
