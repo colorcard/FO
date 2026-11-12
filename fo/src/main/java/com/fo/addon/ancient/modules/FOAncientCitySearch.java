@@ -1228,11 +1228,11 @@ public class FOAncientCitySearch extends Module {
         List<FoundChest> results = new ArrayList<>();
         int radius = searchRadiusSetting.get();
 
-        // 群系验证暂时仍走 cubiomes（阶段 2.5 自写群系采样完成前，DLL 只保留这一个用途）
+        // 群系验证仍走 cubiomes（Windows DLL / Linux .so，阶段 2.5 自写群系采样完成前只保留这一个用途）
         CubiomesJNI jni = null;
         long generator = 0L;
         boolean jniReady = false;
-        debug("DLL 加载状态: " + CubiomesJNI.isLibraryLoaded());
+        debug("原生库加载状态: " + CubiomesJNI.isLibraryLoaded());
         try {
             if (CubiomesJNI.isLibraryLoaded()) {
                 jni = new CubiomesJNI();

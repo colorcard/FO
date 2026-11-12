@@ -11,6 +11,7 @@
 > - Access Widener 已改为 Class Tweaker：`fo/src/main/resources/fo.classtweaker`。
 > - Baritone 不再需要编译期 jar：`BaritonePathManager` 全程反射；运行时由 26.3 的 baritone mod 提供。
 > - 26.3 运行时冒烟测试：`itest/`（独立测试 mod，不随正式 jar 发布），判定 `FO_INTEGRATION_TESTS_PASSED modules=9`。
+> - Linux 古城群系验证已接入 xpple/cubiomes（MC 26.3）：随包提供 `natives/linux-x86_64/libCubiomesJNI.so` + `libcubiomes.so`，构建/说明见 `fo/natives/README.md`。
 > - 旧 6.6 移植保留在本地分支 `port/26.3-6.6`，仅作对照；当前交付以本分支为准。
 >
 > 下方 1.21.11 时代的历史记录保留，用于追溯功能语义；构建/运行参数以本节和「构建与测试」为准。
@@ -213,7 +214,7 @@ FO — Minecraft **Meteor Client (Fabric) 生存辅助全自动插件**（当前
       修复（6.32）：删行后**必须补一次 `table.row()`** 把游标移回，框架在工厂返回后还会再调一次
       row()，正好恢复原节奏。教训：用框架的"删行"类 API 前先读源码确认游标/索引副作用。
   - ✅ 6.32 已完成：6.31 崩溃修复（见上条 ⚠️），无其他改动。
-  - ⏳ 7.0 待做：**群系验证**自写（替代 cubiomes 的 `isViableAncientCity`），然后删掉那两个 Windows DLL
+  - ⏳ 7.0 待做：**群系验证**自写（替代 cubiomes 的 `isViableAncientCity`），然后删掉 Windows DLL 与 Linux `.so`（当前两平台原生库均已可用）
   - 黄金回归测试：`AncientCityGoldenTest`（拼图块 + 箱子坐标 + LootTableSeed）与 `AncientLootEvaluatorTest`
     （113 箱掷骰结果逐箱锁死），两者都**不依赖黑盒**。
   - ⚠️ 已知与参考实现的偏差（我们按 MC 本体语义实现，是刻意修正）：参考实现的 `enchant_with_levels` 忽略 options

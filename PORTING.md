@@ -18,6 +18,7 @@
 - 26.1 起游戏不再混淆：不再需要 Yarn / intermediary / `mappings`；`modImplementation` 改为普通 `implementation`。
 - Access Widener 已迁移为 Class Tweaker：`fo/src/main/resources/fo.classtweaker`。
 - Baritone 通过反射调用，不需要编译期 jar。
+- 古城群系验证：Linux x86_64 随包提供 xpple/cubiomes 原生库（MC 26.3），构建说明见 `fo/natives/README.md`。
 - 产物：`FO-6.7p36-26.3.jar`。
 
 ## 以后更新上游

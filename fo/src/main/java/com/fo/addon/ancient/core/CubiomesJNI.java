@@ -3,7 +3,7 @@ package com.fo.addon.ancient.core;
 /**
  * CubiomesJNI 薄转发层（FO 命名空间）。
  * native 符号绑定 DLL 的 com.custom.addon.util 包名，不能在本包直接声明 native；
- * 因此所有调用转发到黑盒域的 com.custom.addon.util.CubiomesJNI（由它负责 DLL 加载）。
+ * 因此所有调用转发到黑盒域的 com.custom.addon.util.CubiomesJNI（由它负责原生库加载（Windows DLL / Linux .so））。
  */
 public class CubiomesJNI {
     private static final com.custom.addon.util.CubiomesJNI impl = new com.custom.addon.util.CubiomesJNI();
