@@ -75,15 +75,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload jar
-        if: success()
-        uses: actions/upload-artifact@v7
-        with:
-          name: FO-jar-${{ runner.os }}
-          path: fo/build/libs/*.jar
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Upload Linux native libs
         if: success() && runner.os == 'Linux'
         uses: actions/upload-artifact@v7

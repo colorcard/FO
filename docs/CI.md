@@ -15,7 +15,8 @@ CI 配置：`.github/workflows/dev_build.yml`
 - 触发：push / pull_request（仅 `fo/**`、`itest/**`、`PORTING.md`、workflow 变更）/ 手动 `workflow_dispatch`
 - 缓存：`gradle/actions/setup-gradle@v4`
 - 测试报告：`fo/build/test-results/test/*.xml`，失败也会上传
-- 构建产物：`FO-jar-<OS>`；Linux 额外上传 `FO-native-linux-x86_64`
+- 测试报告始终上传；Linux 额外上传 `FO-native-linux-x86_64`（源码中已包含的原生库，便于排查构建问题）。
+- **不上传 jar**：按用户要求，公开仓库的 CI 不发布构建产物 jar；需要 jar 时本地构建。
 
 ## Linux 原生库
 
