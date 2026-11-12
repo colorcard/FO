@@ -1,42 +1,96 @@
-name: dev_build
+name: CI
 
 on:
   push:
     paths:
       - 'fo/**'
+      - 'itest/**'
+      - 'PORTING.md'
+      - '.github/workflows/dev_build.yml'
+  pull_request:
+    paths:
+      - 'fo/**'
+      - 'itest/**'
+      - 'PORTING.md'
       - '.github/workflows/dev_build.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 安装 JDK 25
+      - name: Set up JDK 25
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '25'
 
-      - name: 赋予 gradlew 执行权限
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Linux cubiomes native library
+        if: runner.os == 'Linux'
+        working-directory: fo
+        run: ./natives/build-linux.sh
+
+      - name: Make gradlew executable
+        if: runner.os != 'Windows'
+        working-directory: fo
         run: chmod +x gradlew
+
+      - name: Build & test (Unix)
+        if: runner.os != 'Windows'
         working-directory: fo
+        run: ./gradlew build --stacktrace --no-daemon
 
-      - name: 编译（含全部单元测试）
+      - name: Build & test (Windows)
+        if: runner.os == 'Windows'
         working-directory: fo
-        run: ./gradlew build --stacktrace
+        shell: pwsh
+        run: .\gradlew.bat build --stacktrace --no-daemon
 
-      - name: 收集产物（排除 sources/mappings）
-        run: |
-          mkdir -p out
-          find fo/build/libs -name '*.jar' ! -name '*-sources*' ! -name '*-mappings*' -exec cp {} out/ \;
-          ls -la out/
-
-      - name: 上传构建产物
+      - name: Upload test results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: FO-build
-          path: out/*.jar
-          retention-days: 30
+          name: test-results-${{ runner.os }}
+          path: fo/build/test-results/test/*.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload jar
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FO-jar-${{ runner.os }}
+          path: fo/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux native libs
+        if: success() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FO-native-linux-x86_64
+          path: |
+            fo/src/main/resources/natives/linux-x86_64/libCubiomesJNI.so
+            fo/src/main/resources/natives/linux-x86_64/libcubiomes.so
+          if-no-files-found: error
+          retention-days: 14
